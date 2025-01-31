@@ -1,4 +1,4 @@
-package quackfka
+package quacfka
 
 import (
 	"context"
@@ -12,31 +12,44 @@ import (
 )
 
 type Opt struct {
-	withoutKafka bool
-	withoutProc  bool
-	withoutDuck  bool
+	withoutKafka          bool
+	withoutProc           bool
+	withoutDuck           bool
+	fileRotateThresholdMB int64
 }
 
 type (
-	Option func(Opt)
-	config Opt
+	Option func(config)
+	config *Opt
 )
 
-func WithoutKafka(p bool) Option {
-	return func(cfg Opt) {
-		cfg.withoutKafka = p
+func WithoutKafka() Option {
+	return func(cfg config) {
+		cfg.withoutKafka = true
 	}
 }
 
-func WithoutProcessing(p bool) Option {
-	return func(cfg Opt) {
-		cfg.withoutProc = p
+func WithoutProcessing() Option {
+	return func(cfg config) {
+		cfg.withoutProc = true
 	}
 }
 
-func WithoutDuck(p bool) Option {
-	return func(cfg Opt) {
-		cfg.withoutDuck = p
+func WithoutDuck() Option {
+	return func(cfg config) {
+		cfg.withoutDuck = true
+	}
+}
+
+// WithFileRotateThresholdMB sets the database file rotation size.
+// Minimum rotation threshold is 25MB.
+func WithFileRotateThresholdMB(p int64) Option {
+	return func(cfg config) {
+		if p < 25 {
+			cfg.fileRotateThresholdMB = 25
+			return
+		}
+		cfg.fileRotateThresholdMB = p
 	}
 }
 
@@ -45,6 +58,7 @@ type Orchestrator[T proto.Message] struct {
 	kafkaConf              *KafkaClientConf[T]
 	processorConf          *processorConf[T]
 	duckConf               *duckConf
+	duckPaths              chan string
 	mChan                  chan []byte
 	rChan                  chan arrow.Record
 	mungeFunc              func([]byte, any) error
@@ -54,6 +68,7 @@ type Orchestrator[T proto.Message] struct {
 	msgProcessorsCount     atomic.Int32
 	duckConnCount          atomic.Int32
 	rChanClosed            bool
+	opt                    Opt
 }
 
 func NewOrchestrator[T proto.Message]() (*Orchestrator[T], error) {
@@ -67,12 +82,14 @@ func NewOrchestrator[T proto.Message]() (*Orchestrator[T], error) {
 	o.rowGroupSizeMultiplier = 1
 	o.msgProcessorsCount.Store(1)
 	o.duckConnCount.Store(1)
+	o.duckPaths = make(chan string, 1000)
 	o.NewMetrics()
 	return o, nil
 }
 func (o *Orchestrator[T]) Close() {
 	o.duckConf.quack.Close()
 }
+
 func (o *Orchestrator[T]) Run(ctx context.Context, wg *sync.WaitGroup, opts ...Option) {
 	o.NewMetrics()
 	o.mChan = make(chan []byte, o.kafkaConf.MsgChanCap)
@@ -80,9 +97,11 @@ func (o *Orchestrator[T]) Run(ctx context.Context, wg *sync.WaitGroup, opts ...O
 	defer wg.Done()
 	var runOpts Opt
 	var runWG sync.WaitGroup
-	for _, opt := range opts {
-		opt(runOpts)
+	for _, f := range opts {
+		f(&runOpts)
 	}
+	o.opt = runOpts
+
 	o.StartMetrics()
 	go o.benchmark(ctx)
 	if !runOpts.withoutKafka {
@@ -95,7 +114,12 @@ func (o *Orchestrator[T]) Run(ctx context.Context, wg *sync.WaitGroup, opts ...O
 	}
 	if !runOpts.withoutDuck && o.Error() == nil {
 		runWG.Add(1)
-		go o.DuckIngest(context.Background(), &runWG)
+		switch rt := o.opt.fileRotateThresholdMB; rt > 0 {
+		case true:
+			go o.DuckIngestWithRotate(context.Background(), &runWG)
+		default:
+			go o.DuckIngest(context.Background(), &runWG)
+		}
 	}
 	runWG.Wait()
 	o.UpdateMetrics()
@@ -107,7 +131,7 @@ func (o *Orchestrator[T]) RecordChan() chan arrow.Record { return o.rChan }
 func (o *Orchestrator[T]) KafkaClientCount() int         { return int(o.kafkaConf.ClientCount.Load()) }
 func (o *Orchestrator[T]) MsgProcessorsCount() int       { return int(o.msgProcessorsCount.Load()) }
 func (o *Orchestrator[T]) DuckConnCount() int            { return int(o.duckConf.duckConnCount.Load()) }
-
+func (o *Orchestrator[T]) DuckPaths() chan string        { return o.duckPaths }
 func newBufarrowSchema[T proto.Message]() (*bufa.Schema[T], error) {
 	return bufa.New[T](memory.DefaultAllocator)
 }

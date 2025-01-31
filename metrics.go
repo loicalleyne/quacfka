@@ -1,4 +1,4 @@
-package quackfka
+package quacfka
 
 import (
 	"context"
@@ -105,7 +105,7 @@ func (o *Orchestrator[T]) generateBenchmarksReport() MetricsReport {
 		DuckConnCount:    o.DuckConnCount(),
 		StartTime:        o.Metrics.startTime.Format(time.RFC3339),
 		EndTime:          o.Metrics.benchEndTime.Format(time.RFC3339),
-		Records:          formatLargeNumber(float64(recordsProcessed)), // Format records
+		Records:          formatLargeNumber(float64(recordsProcessed)),
 		DataTransferred:  formatBytes(totalBytes),
 		Duration:         formatDuration(duration),
 		RecordsPerSec:    formatThroughput(throughput),
@@ -172,7 +172,7 @@ func (o *Orchestrator[T]) generateMetricsReport() MetricsReport {
 		DuckConnCount:    o.DuckConnCount(),
 		StartTime:        o.Metrics.startTime.Format(time.RFC3339),
 		EndTime:          time.Unix(0, o.Metrics.endTimeUnix.Load()).Format(time.RFC3339),
-		Records:          formatLargeNumber(float64(recordsProcessed)), // Format records
+		Records:          formatLargeNumber(float64(recordsProcessed)),
 		DataTransferred:  formatBytes(totalBytes),
 		Duration:         formatDuration(duration),
 		RecordsPerSec:    formatThroughput(throughput),

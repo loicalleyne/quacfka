@@ -3,7 +3,7 @@ Quacfka 🏹🦆
 [![Go Reference](https://pkg.go.dev/badge/github.com/loicalleyne/quacfka.svg)](https://pkg.go.dev/github.com/loicalleyne/quacfka)
 
 Go library to stream Kafka protobuf messages to DuckDB.
-Uses generics. Pass your protobuf message as a type parameter to autogenerate an Arrow schema, provide a protobuf unmarshaling func, and stream data into DuckDB with very high throughput.
+Uses generics. Use your protobuf message as a type parameter to autogenerate an Arrow schema, provide a protobuf unmarshaling func, and stream data into DuckDB with a very high throughput.
 
 ## Features
 ### Arrow schema generation from a protobuf message type parameter
@@ -61,9 +61,20 @@ Kafka client can be configured with a slice of `franz-go/pkg/kgo.Opt` or SASL us
 		panic(err)
 	}
 	wg.Add(1)
-	go o.Run(ctxT, &wg)
+	// Run with DuckDB file rotation
+	go o.Run(ctxT, &wg, q.WithFileRotateThresholdMB(5000))
+	// Get chan string of closed, rotated DuckDB files
+	duckFiles := o.DuckPaths()
+	...
+	// Query duckdb files to aggregate, activate alerts, etc...
+	...
 	wg.Wait()
-    log.Printf("%v\n", o.Report())
+	// Check for processing errors
+	if o.Error() != nil {
+		log.Println(err)
+	}
+	// Print pipeline metrics
+	log.Printf("%v\n", o.Report())
 ...
 func customProtoUnmarshal(m []byte, s any) error {
 	newMessage := rr.BidRequestEventFromVTPool()

@@ -1,4 +1,4 @@
-package quackfka
+package quacfka
 
 import (
 	"fmt"
@@ -23,10 +23,6 @@ func formatDuration(d time.Duration) string {
 	return d.Round(time.Millisecond).String()
 }
 
-func formatThroughput(t float64) string {
-	return formatLargeNumber(t)
-}
-
 func formatLargeNumber(n float64) string {
 	parts := strings.Split(fmt.Sprintf("%.2f", n), ".")
 	intPart := parts[0]
@@ -43,14 +39,18 @@ func formatLargeNumber(n float64) string {
 	return fmt.Sprintf("%s.%s", string(reverse(string(result))), decPart)
 }
 
+func formatThroughput(t float64) string {
+	return formatLargeNumber(t)
+}
+
+func formatThroughputBytes(t float64) string {
+	return fmt.Sprintf("%s/second", formatBytes(int64(t)))
+}
+
 func reverse(s string) string {
 	runes := []rune(s)
 	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
 		runes[i], runes[j] = runes[j], runes[i]
 	}
 	return string(runes)
-}
-
-func formatThroughputBytes(t float64) string {
-	return fmt.Sprintf("%s/second", formatBytes(int64(t)))
 }

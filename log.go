@@ -1,4 +1,4 @@
-package quackfka
+package quacfka
 
 type Logger func(string, ...any)
 

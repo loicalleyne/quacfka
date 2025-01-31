@@ -23,3 +23,13 @@ go.work.sum
 
 # env file
 .env
+
+tmp/
+cmd/
+testdata/
+quacfka.zip
+quacfka
+*.pgo
+*.parquet
+*.db
+*.wal
