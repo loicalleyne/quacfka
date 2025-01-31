@@ -4,6 +4,7 @@ go 1.23.3
 
 retract (
     v0.1.0 // Readme bugs
+	v0.1.1 // module issue
     v0.2.0 // module issue
 )
 require (
