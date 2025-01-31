@@ -3,7 +3,7 @@ Quacfka 🏹🦆
 [![Go Reference](https://pkg.go.dev/badge/github.com/loicalleyne/quacfka.svg)](https://pkg.go.dev/github.com/loicalleyne/quacfka)
 
 Go library to stream Kafka protobuf messages to DuckDB.
-Uses generics. Pass your protobuf message as a type parameter to autogenrate an Arrow schema, a protobuf unmarshaling func, to stream data into DuckDB with very high throughput.
+Uses generics. Pass your protobuf message as a type parameter to autogenrate an Arrow schema, provide a protobuf unmarshaling func, and stream data into DuckDB with very high throughput.
 
 ## Features
 ### Arrow schema generation from a protobuf message type parameter
