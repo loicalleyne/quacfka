@@ -2,10 +2,12 @@ module github.com/loicalleyne/quacfka
 
 go 1.23.3
 
-replace (
-    github.com/loicalleyne/quacfka v0.1.0 => github.com/loicalleyne/quacfka v0.2.1
-	github.com/loicalleyne/quacfka v0.1.1 => github.com/loicalleyne/quacfka v0.2.1
-	github.com/loicalleyne/quacfka v0.2.0 => github.com/loicalleyne/quacfka v0.2.1
+retract (
+	v0.1.0
+	v0.1.1
+	v0.2.0
+	v0.2.1
+	v0.2.2
 )
 
 require (
