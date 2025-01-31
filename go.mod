@@ -2,11 +2,12 @@ module github.com/loicalleyne/quacfka
 
 go 1.23.3
 
-retract (
-    v0.1.0 // Readme bugs
-	v0.1.1 // module issue
-    v0.2.0 // module issue
+replace (
+    github.com/loicalleyne/quacfka v0.1.0 => github.com/loicalleyne/quacfka v0.2.1
+	github.com/loicalleyne/quacfka v0.1.1 => github.com/loicalleyne/quacfka v0.2.1
+	github.com/loicalleyne/quacfka v0.2.0 => github.com/loicalleyne/quacfka v0.2.1
 )
+
 require (
 	github.com/SAP/go-dblib v0.0.0-20230911064405-b779cef8f299
 	github.com/apache/arrow-go/v18 v18.1.1-0.20250116162745-f533d2066dee
