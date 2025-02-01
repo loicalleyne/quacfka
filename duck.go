@@ -124,7 +124,10 @@ func (o *Orchestrator[T]) DuckIngestWithRotate(ctx context.Context, w *sync.Wait
 		rwg.Add(1)
 		go o.DuckIngest(context.Background(), &rwg)
 		rwg.Wait()
-
+		if debugLog != nil {
+			debugLog("db size: %d\n", checkDBSize(o.duckConf.quack.Path()))
+		}
+		o.Metrics.recordBytes.Store(0)
 		o.duckConf.quack.Close()
 		o.configureDuck(o.duckConf)
 	}
@@ -172,7 +175,7 @@ func (o *Orchestrator[T]) DuckIngest(ctx context.Context, w *sync.WaitGroup) {
 		if debugLog != nil {
 			debugLog("quacfka: duck pool size %d\tctx.Err %v\n", dpool.Running(), ctx.Err())
 		}
-		if o.opt.fileRotateThresholdMB > 0 && o.duckConf.quack.Path() != "" && checkDBSize(o.duckConf.quack.Path()) >= o.opt.fileRotateThresholdMB {
+		if o.opt.fileRotateThresholdMB > 0 && o.duckConf.quack.Path() != "" && o.Metrics.recordBytes.Load()/1024/1024 >= o.opt.fileRotateThresholdMB {
 			break
 		}
 	}
@@ -194,15 +197,7 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 	defer duck.Close()
 	ctx := context.Background()
 	var numRows int64
-	debugLog("===== %v  %v\n", o.opt.fileRotateThresholdMB, path)
 	for record := range c.rChan {
-		// If file rotation is enabled, exit every time threshold is met.
-		if o.opt.fileRotateThresholdMB > 0 && path != "" {
-			if checkDBSize(path) >= o.opt.fileRotateThresholdMB {
-				debugLog("db size: %d\n", checkDBSize(path))
-				break
-			}
-		}
 		if debugLog != nil {
 			tick = time.Now()
 			debugLog("quacfka: duck inserter - pull record - %d\n", len(c.rChan))
@@ -218,6 +213,25 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 			o.Metrics.recordsInserted.Add(numRows)
 			if debugLog != nil {
 				debugLog("quacfka: duckdb - rows ingested: %d -%d ms-  %f rows/sec\n", numRows, time.Since(tick).Milliseconds(), (float64(numRows) / float64(time.Since(tick).Seconds())))
+			}
+		}
+		// If file rotation is enabled, exit every time threshold is met.
+		if o.opt.fileRotateThresholdMB > 0 && path != "" {
+			var s uint64
+			var offset int64
+			for _, c := range record.Columns() {
+				s = s + c.Data().SizeInBytes()
+			}
+			o.Metrics.recordBytes.Add(int64(s))
+			if int64(float64(o.DuckConnCount())*3) > o.opt.fileRotateThresholdMB {
+				offset = 15
+			} else {
+				offset = int64(float64(o.DuckConnCount()) * 5)
+			}
+			if o.Metrics.recordBytes.Load()/1024/1024 >= o.opt.fileRotateThresholdMB-offset {
+				if checkDBSize(o.duckConf.quack.Path()) >= o.opt.fileRotateThresholdMB-offset {
+					break
+				}
 			}
 		}
 	}

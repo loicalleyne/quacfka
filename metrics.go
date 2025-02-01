@@ -15,6 +15,7 @@ type Metrics struct {
 	recordsProcessed      atomic.Int64
 	recordsInserted       atomic.Int64
 	totalBytes            atomic.Int64
+	recordBytes           atomic.Int64
 
 	maxMChanLen    atomic.Int32
 	maxRChanLen    atomic.Int32

@@ -107,6 +107,6 @@ func messageMunger(m []byte) []byte {
 Give a ⭐️ if this project helped you!
 Feedback and PRs welcome.
 
-## License
+## Licence
 
 Quacfka is released under the Apache 2.0 license. See [LICENCE.txt](LICENCE.txt)

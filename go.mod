@@ -3,11 +3,11 @@ module github.com/loicalleyne/quacfka
 go 1.23.3
 
 retract (
-	v0.1.0
-	v0.1.1
-	v0.2.0
-	v0.2.1
 	v0.2.2
+	v0.2.1
+	v0.2.0
+	v0.1.1
+	v0.1.0
 )
 
 require (
@@ -18,6 +18,7 @@ require (
 	github.com/loicalleyne/bufarrow v0.4.0
 	github.com/loicalleyne/couac v0.5.1
 	github.com/panjf2000/ants/v2 v2.11.0
+	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/spf13/cast v1.7.1
 	github.com/twmb/franz-go v1.18.1
 	google.golang.org/protobuf v1.36.4
