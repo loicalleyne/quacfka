@@ -14,6 +14,7 @@ import (
 
 	"github.com/SAP/go-dblib/namepool"
 	_ "github.com/joho/godotenv/autoload"
+	"github.com/loicalleyne/protorand"
 	"github.com/panjf2000/ants/v2"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/sasl/plain"
@@ -204,4 +205,34 @@ func (o *Orchestrator[T]) startKafka(ctx context.Context, w *sync.WaitGroup) {
 	if debugLog != nil {
 		debugLog("quacfka: closing mChan: %v recs\n", o.Metrics.kafkaMessagesConsumed.Load())
 	}
+}
+
+func (o *Orchestrator[T]) MockKafka(ctx context.Context, w *sync.WaitGroup, p T) {
+	defer w.Done()
+
+	var kg sync.WaitGroup
+	o.mChan = make(chan []byte, o.kafkaConf.MsgChanCap)
+	defer close(o.mChan)
+
+	for i := 0; i < 10; i++ {
+		kg.Add(1)
+		go func(ctx context.Context, g *sync.WaitGroup) {
+			defer g.Done()
+			pr := protorand.New()
+			pr.Seed(time.Now().UnixMicro())
+			for ctx.Err() == nil {
+				m, err := pr.Gen(p)
+				if err != nil {
+					panic(err)
+				}
+				j, err := proto.Marshal(m.(T))
+				if err != nil {
+					panic(err)
+				}
+				o.mChan <- o.byteCounter(j)
+				o.Metrics.kafkaMessagesConsumed.Add(1)
+			}
+		}(ctx, &kg)
+	}
+	kg.Wait()
 }

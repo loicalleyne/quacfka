@@ -172,7 +172,7 @@ func (o *Orchestrator[T]) generateMetricsReport() MetricsReport {
 		ProcessorCount:   o.MsgProcessorsCount(),
 		DuckConnCount:    o.DuckConnCount(),
 		StartTime:        o.Metrics.startTime.Format(time.RFC3339),
-		EndTime:          time.Unix(0, o.Metrics.endTimeUnix.Load()).Format(time.RFC3339),
+		EndTime:          o.Metrics.endTime.Format(time.RFC3339),
 		Records:          formatLargeNumber(float64(recordsProcessed)),
 		DataTransferred:  formatBytes(totalBytes),
 		Duration:         formatDuration(duration),

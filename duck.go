@@ -121,15 +121,18 @@ func (o *Orchestrator[T]) DuckIngestWithRotate(ctx context.Context, w *sync.Wait
 	defer w.Done()
 	var rwg sync.WaitGroup
 	for !o.rChanClosed {
-		rwg.Add(1)
-		go o.DuckIngest(context.Background(), &rwg)
-		rwg.Wait()
-		if debugLog != nil {
-			debugLog("db size: %d\n", checkDBSize(o.duckConf.quack.Path()))
+		if len(o.rChan) > 0 {
+			rwg.Add(1)
+			go o.DuckIngest(context.Background(), &rwg)
+			rwg.Wait()
+			if debugLog != nil {
+				debugLog("db size: %d\n", checkDBSize(o.duckConf.quack.Path()))
+			}
+			o.Metrics.recordBytes.Store(0)
+			// TODO: check for empty db file and delete it
+			o.duckConf.quack.Close()
+			o.configureDuck(o.duckConf)
 		}
-		o.Metrics.recordBytes.Store(0)
-		o.duckConf.quack.Close()
-		o.configureDuck(o.duckConf)
 	}
 }
 

@@ -92,8 +92,7 @@ func (o *Orchestrator[T]) Close() {
 
 func (o *Orchestrator[T]) Run(ctx context.Context, wg *sync.WaitGroup, opts ...Option) {
 	o.NewMetrics()
-	o.mChan = make(chan []byte, o.kafkaConf.MsgChanCap)
-	o.rChan = make(chan arrow.Record, o.processorConf.rChanCap)
+
 	defer wg.Done()
 	var runOpts Opt
 	var runWG sync.WaitGroup
@@ -101,14 +100,18 @@ func (o *Orchestrator[T]) Run(ctx context.Context, wg *sync.WaitGroup, opts ...O
 		f(&runOpts)
 	}
 	o.opt = runOpts
-
+	if debugLog != nil {
+		debugLog("w/o Kafka: %v\tw/o Proc: %v\tw/o duckdb: %v\trotation threshold MB:%d\n", o.opt.withoutKafka, o.opt.withoutProc, o.opt.withoutDuck, o.opt.fileRotateThresholdMB)
+	}
 	o.StartMetrics()
 	go o.benchmark(ctx)
 	if !runOpts.withoutKafka {
+		o.mChan = make(chan []byte, o.kafkaConf.MsgChanCap)
 		runWG.Add(1)
 		go o.startKafka(ctx, &runWG)
 	}
 	if !runOpts.withoutProc && o.Error() == nil {
+		o.rChan = make(chan arrow.Record, o.processorConf.rChanCap)
 		runWG.Add(1)
 		go o.ProcessMessages(ctx, &runWG)
 	}

@@ -32,7 +32,7 @@ import "github.com/loicalleyne/quacfka"
 Create a new Orchestrator, configure the Kafka client, processing and DuckDB, then Run().
 Kafka client can be configured with a slice of `franz-go/pkg/kgo.Opt` or SASL user/pass auth.
 ```go
-    o, err := q.NewOrchestrator[*rr.BidRequestEvent]()
+    o, err := q.NewOrchestrator[*your.CustomProtoMessageType]()
 	if err != nil {
 		panic(err)
 	}
@@ -82,8 +82,8 @@ func customProtoUnmarshal(m []byte, s any) error {
 	if err != nil {
 		return err
 	}
-	// Assert s to `*bufa.Schema[*your.CustomProtoMessageType]`
-	s.(*bufa.Schema[*your.CustomProtoMessageType]).Append(newMessage)
+	// Assert s to `*bufarrow.Schema[*your.CustomProtoMessageType]`
+	s.(*bufarrow.Schema[*your.CustomProtoMessageType]).Append(newMessage)
 	newMessage.ReturnToVTPool()
 	return nil
 }
@@ -100,6 +100,17 @@ func messageMunger(m []byte) []byte {
 //   "records_per_second": "553_301.35",
 //   "transfer_rate": "652.95 MB/second"
 // }
+```
+Generate random data to emulate the Kafka topic
+```go
+	wg.Add(1)
+	// Instantiate a sample proto.Message to provide a description,
+	// random data will be generated for all fields.
+	go o.MockKafka(ctxT, &wg, &your.CustomProtoMessageType{Id: "1233242423243"})
+	wg.Add(1)
+	// WithFileRotateThresholdMB specifies a file rotation threshold target in MB (not very accurate yet)
+	go o.Run(ctxT, &wg, q.WithoutKafka(), q.WithFileRotateThresholdMB(250))
+	wg.Wait()
 ```
 
 ## 💫 Show your support

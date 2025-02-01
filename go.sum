@@ -46,6 +46,8 @@ github.com/loicalleyne/bufarrow v0.4.0 h1:6UFdf4gZnHZb2AE9p+67vNqScQ82EA4YYMbfR0
 github.com/loicalleyne/bufarrow v0.4.0/go.mod h1:J8z6h+men8d31jJm0aAgm906Gd7JD83F3Eeihho7x6g=
 github.com/loicalleyne/couac v0.5.1 h1:HoVHUiNTuBDHpU+weSzs3/VuBHmMMsjk8oNiNzdXfAE=
 github.com/loicalleyne/couac v0.5.1/go.mod h1:QNw/G/YVYkdr9RRNwdlxPY6S8UIfg9aM4UjZXhvyvSQ=
+github.com/loicalleyne/protorand v0.0.0-20250201052828-ef9589bb5a9a h1:k+qx2PGZDvrgPxHObjzbHlu9cJJWuscU1/nYk4S3/4Q=
+github.com/loicalleyne/protorand v0.0.0-20250201052828-ef9589bb5a9a/go.mod h1:sUGcVJlBsqTSmuYhsS1J8SrgYoBD/l0eWv5metMQKeY=
 github.com/minio/asm2plan9s v0.0.0-20200509001527-cdd76441f9d8 h1:AMFGa4R4MiIpspGNG7Z948v4n35fFGB3RR3G/ry4FWs=
 github.com/minio/asm2plan9s v0.0.0-20200509001527-cdd76441f9d8/go.mod h1:mC1jAcsrzbxHt8iiaC+zU4b1ylILSosueou12R++wfY=
 github.com/minio/c2goasm v0.0.0-20190812172519-36a3d3bbc4f3 h1:+n/aFZefKZp7spd8DFdX7uMikMLXX4oubIzJF4kv/wI=
