@@ -60,9 +60,15 @@ Kafka client can be configured with a slice of `franz-go/pkg/kgo.Opt` or SASL us
 	if err != nil {
 		panic(err)
 	}
+	// Use MockKafka to generate random data for your custom proto to simulate consuming the protobuf from Kafka
+	// wg.Add(1)
+	// go o.MockKafka(ctxT, &wg, &rr.BidRequestEvent{Id: "1233242423243"})
+	// wg.Add(1)
+	// go o.Run(ctxT, &wg, q.WithoutKafka(), q.WithFileRotateThresholdMB(250))
+
 	wg.Add(1)
-	// Run with DuckDB file rotation
-	go o.Run(ctxT, &wg, q.WithFileRotateThresholdMB(5000))
+	// Run with DuckDB file rotation, and (an optional) CustomArrow function to munge the Arrow record in-flight and insert it to another DuckDB table
+	go o.Run(ctxT, &wg, q.WithFileRotateThresholdMB(5000), q.WithCustomArrows([]q.CustomArrow{{CustomFunc: flattenNestedForAgg, DestinationTable: "test"}}))
 	// Get chan string of closed, rotated DuckDB files
 	duckFiles := o.DuckPaths()
 	...
@@ -90,6 +96,10 @@ func customProtoUnmarshal(m []byte, s any) error {
 
 func messageMunger(m []byte) []byte {
 	return m[6:]
+}
+func flattenNestedForAgg(ctx context.Context, dest string, record arrow.Record) arrow.Record {
+	...
+	return mungedRecord
 }
 // {
 //   "start_time": "2025-01-30T23:59:33Z",
