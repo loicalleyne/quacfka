@@ -92,7 +92,7 @@ func (o *Orchestrator[T]) ProcessMessages(ctx context.Context, wg *sync.WaitGrou
 		c.s = sc
 		cpool.Invoke(c)
 		if debugLog != nil {
-			debugLog("quacfka: processing pool size %d\tctx.Err %v\n", cpool.Running(), ctx.Err())
+			debugLog("quacfka: processing pool size %d\n", cpool.Running())
 		}
 	}
 	cwg.Wait()
@@ -141,8 +141,9 @@ func convertMessages[T proto.Message](c any) {
 		c.(*processorConf[T]).parent.Metrics.recordsProcessed.Add(1)
 		if bc == 122880*c.(*processorConf[T]).parent.rowGroupSizeMultiplier {
 			c.(*processorConf[T]).parent.rChan <- c.(*processorConf[T]).s.NewRecord()
+			c.(*processorConf[T]).parent.rChanRecs.Add(1)
 			if debugLog != nil {
-				debugLog("quacfka: new arrow record\n")
+				debugLog("quacfka: new arrow record - %d\n", c.(*processorConf[T]).parent.rChanRecs.Load())
 			}
 			bc = 0
 		}
@@ -154,6 +155,7 @@ func convertMessages[T proto.Message](c any) {
 	}
 	if bc != 0 {
 		c.(*processorConf[T]).parent.rChan <- c.(*processorConf[T]).s.NewRecord()
+		c.(*processorConf[T]).parent.rChanRecs.Add(1)
 		if debugLog != nil {
 			debugLog("quacfka: new arrow record - %d\n", len(c.(*processorConf[T]).parent.rChan))
 		}

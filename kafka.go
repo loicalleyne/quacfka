@@ -190,7 +190,7 @@ func (o *Orchestrator[T]) startKafka(ctx context.Context, w *sync.WaitGroup) {
 		k.instanceID = instanceIDPool.Acquire().Name()
 		kpool.Invoke(k)
 		if debugLog != nil {
-			debugLog("quacfka: kpool size: %d\tctx.Err:%v\n", kpool.Running(), ctx.Err())
+			debugLog("quacfka: kpool size: %d\n", kpool.Running())
 		}
 		select {
 		case <-ctx.Done():
@@ -205,6 +205,7 @@ func (o *Orchestrator[T]) startKafka(ctx context.Context, w *sync.WaitGroup) {
 	if debugLog != nil {
 		debugLog("quacfka: closing mChan: %v recs\n", o.Metrics.kafkaMessagesConsumed.Load())
 	}
+	o.mChanClosed = true
 }
 
 func (o *Orchestrator[T]) MockKafka(ctx context.Context, w *sync.WaitGroup, p T) {
@@ -213,7 +214,6 @@ func (o *Orchestrator[T]) MockKafka(ctx context.Context, w *sync.WaitGroup, p T)
 	var kg sync.WaitGroup
 	o.mChan = make(chan []byte, o.kafkaConf.MsgChanCap)
 	defer close(o.mChan)
-
 	for i := 0; i < 10; i++ {
 		kg.Add(1)
 		go func(ctx context.Context, g *sync.WaitGroup) {
@@ -235,4 +235,5 @@ func (o *Orchestrator[T]) MockKafka(ctx context.Context, w *sync.WaitGroup, p T)
 		}(ctx, &kg)
 	}
 	kg.Wait()
+	o.mChanClosed = true
 }

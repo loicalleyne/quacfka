@@ -2,6 +2,8 @@ package quacfka
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -11,11 +13,21 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+var (
+	ErrMissingDuckDBConfig = errors.New("missing duckdb configuration")
+)
+
+type CustomArrow struct {
+	CustomFunc       func(context.Context, string, arrow.Record) arrow.Record
+	DestinationTable string
+}
+
 type Opt struct {
 	withoutKafka          bool
 	withoutProc           bool
 	withoutDuck           bool
 	fileRotateThresholdMB int64
+	customArrow           []CustomArrow
 }
 
 type (
@@ -41,12 +53,22 @@ func WithoutDuck() Option {
 	}
 }
 
+func WithCustomArrows(p []CustomArrow) Option {
+	return func(cfg config) {
+		for _, c := range p {
+			if c.CustomFunc != nil && c.DestinationTable != "" {
+				cfg.customArrow = append(cfg.customArrow, c)
+			}
+		}
+	}
+}
+
 // WithFileRotateThresholdMB sets the database file rotation size.
-// Minimum rotation threshold is 25MB.
+// Minimum rotation threshold is 100MB.
 func WithFileRotateThresholdMB(p int64) Option {
 	return func(cfg config) {
-		if p < 25 {
-			cfg.fileRotateThresholdMB = 25
+		if p < 100 {
+			cfg.fileRotateThresholdMB = 100
 			return
 		}
 		cfg.fileRotateThresholdMB = p
@@ -61,12 +83,14 @@ type Orchestrator[T proto.Message] struct {
 	duckPaths              chan string
 	mChan                  chan []byte
 	rChan                  chan arrow.Record
+	rChanRecs              atomic.Int32
 	mungeFunc              func([]byte, any) error
 	err                    error
 	Metrics                *Metrics
 	rowGroupSizeMultiplier int
 	msgProcessorsCount     atomic.Int32
 	duckConnCount          atomic.Int32
+	mChanClosed            bool
 	rChanClosed            bool
 	opt                    Opt
 }
@@ -87,12 +111,15 @@ func NewOrchestrator[T proto.Message]() (*Orchestrator[T], error) {
 	return o, nil
 }
 func (o *Orchestrator[T]) Close() {
-	o.duckConf.quack.Close()
+	if o.duckConf != nil && o.duckConf.quack != nil {
+		// Send db file path to channel for further aggregations/querying
+		o.duckPaths <- o.duckConf.quack.Path()
+		o.duckConf.quack.Close()
+	}
 }
 
 func (o *Orchestrator[T]) Run(ctx context.Context, wg *sync.WaitGroup, opts ...Option) {
 	o.NewMetrics()
-
 	defer wg.Done()
 	var runOpts Opt
 	var runWG sync.WaitGroup
@@ -116,12 +143,20 @@ func (o *Orchestrator[T]) Run(ctx context.Context, wg *sync.WaitGroup, opts ...O
 		go o.ProcessMessages(ctx, &runWG)
 	}
 	if !runOpts.withoutDuck && o.Error() == nil {
-		runWG.Add(1)
-		switch rt := o.opt.fileRotateThresholdMB; rt > 0 {
-		case true:
-			go o.DuckIngestWithRotate(context.Background(), &runWG)
+		switch dc := o.duckConf; dc {
+		case nil:
+			o.err = fmt.Errorf("quacfka: %w", ErrMissingDuckDBConfig)
+			if errorLog != nil {
+				errorLog("quacfka: %v", ErrMissingDuckDBConfig)
+			}
 		default:
-			go o.DuckIngest(context.Background(), &runWG)
+			runWG.Add(1)
+			switch rt := o.opt.fileRotateThresholdMB; rt > 0 {
+			case true:
+				go o.DuckIngestWithRotate(context.Background(), &runWG)
+			default:
+				go o.DuckIngest(context.Background(), &runWG)
+			}
 		}
 	}
 	runWG.Wait()
