@@ -140,7 +140,8 @@ func convertMessages[T proto.Message](c any) {
 		bc++
 		c.(*processorConf[T]).parent.Metrics.recordsProcessed.Add(1)
 		if bc == 122880*c.(*processorConf[T]).parent.rowGroupSizeMultiplier {
-			c.(*processorConf[T]).parent.rChan <- c.(*processorConf[T]).s.NewRecord()
+			c.(*processorConf[T]).parent.rChan <- Record{Raw: c.(*processorConf[T]).s.NewRecord(),
+				Norm: c.(*processorConf[T]).s.NewNormalizerRecord()}
 			c.(*processorConf[T]).parent.rChanRecs.Add(1)
 			if debugLog != nil {
 				debugLog("quacfka: new arrow record - %d\n", c.(*processorConf[T]).parent.rChanRecs.Load())
@@ -154,7 +155,8 @@ func convertMessages[T proto.Message](c any) {
 		}
 	}
 	if bc != 0 {
-		c.(*processorConf[T]).parent.rChan <- c.(*processorConf[T]).s.NewRecord()
+		c.(*processorConf[T]).parent.rChan <- Record{Raw: c.(*processorConf[T]).s.NewRecord(),
+			Norm: c.(*processorConf[T]).s.NewNormalizerRecord()}
 		c.(*processorConf[T]).parent.rChanRecs.Add(1)
 		if debugLog != nil {
 			debugLog("quacfka: new arrow record - %d\n", len(c.(*processorConf[T]).parent.rChan))

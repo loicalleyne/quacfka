@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/loicalleyne/couac"
 	"github.com/panjf2000/ants/v2"
 	"github.com/spf13/cast"
@@ -28,7 +27,7 @@ type duckConf struct {
 type duckJob struct {
 	quack     *couac.Quacker
 	destTable string
-	rChan     chan arrow.Record
+	rChan     chan Record
 	wg        *sync.WaitGroup
 }
 
@@ -113,6 +112,7 @@ func (o *Orchestrator[T]) configureDuck(d *duckConf) error {
 	if err != nil {
 		return fmt.Errorf("duckdb config error: %w", err)
 	}
+	o.Metrics.duckFiles.Add(1)
 	return nil
 }
 
@@ -128,6 +128,8 @@ func (o *Orchestrator[T]) DuckIngestWithRotate(ctx context.Context, w *sync.Wait
 				debugLog("db size: %d\n", o.CurrentDBSize())
 			}
 			o.Metrics.recordBytes.Store(0)
+			// record cumulative size of duckdb files
+			o.Metrics.duckFilesSizeMB.Add(o.CurrentDBSize())
 			o.duckConf.quack.Close()
 			o.duckPaths <- o.duckConf.quack.Path()
 			if !(o.rChanClosed && o.rChanRecs.Load() == 0) {
@@ -161,26 +163,26 @@ func (o *Orchestrator[T]) DuckIngest(ctx context.Context, w *sync.WaitGroup) {
 		if !ok {
 			o.rChanClosed = true
 		}
-		if record != nil {
+		if record.Raw != nil {
 			if len(o.opt.customArrow) > 0 {
 				for _, a := range o.opt.customArrow {
-					record.Retain()
-					modRec := a.CustomFunc(ctx, a.DestinationTable, record)
+					record.Raw.Retain()
+					modRec := a.CustomFunc(ctx, a.DestinationTable, record.Raw)
 					_, err := duck.IngestCreateAppend(ctx, a.DestinationTable, modRec)
 					if err != nil {
 						if errorLog != nil {
 							errorLog("quacfka: duck ingestcreateappend %v\n", err)
 						}
 						modRec.Release()
-						record.Release()
+						record.Raw.Release()
 						continue
 					}
 					modRec.Release()
-					record.Release()
+					record.Raw.Release()
 				}
 			}
-			numRows := record.NumRows()
-			_, err = duck.IngestCreateAppend(ctx, d.destTable, record)
+			numRows := record.Raw.NumRows()
+			_, err = duck.IngestCreateAppend(ctx, d.destTable, record.Raw)
 			if err != nil {
 				if errorLog != nil {
 					errorLog("quacfka: duck ingestcreateappend %v\n", err)
@@ -188,6 +190,17 @@ func (o *Orchestrator[T]) DuckIngest(ctx context.Context, w *sync.WaitGroup) {
 			} else {
 				o.rChanRecs.Add(-1)
 				o.Metrics.recordsInserted.Add(numRows)
+			}
+		}
+		if record.Norm != nil {
+			numRows := record.Norm.NumRows()
+			_, err = duck.IngestCreateAppend(ctx, d.destTable+"_norm", record.Norm)
+			if err != nil {
+				if errorLog != nil {
+					errorLog("quacfka: duck ingestcreateappend %v\n", err)
+				}
+			} else {
+				o.Metrics.normRecordsInserted.Add(numRows)
 			}
 		}
 	default:
@@ -243,28 +256,50 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 			tick = time.Now()
 			debugLog("quacfka: duck inserter - pull record - %d\n", o.rChanRecs.Load())
 		}
-		numRows = record.NumRows()
-		record.Retain()
+		numRows = record.Raw.NumRows()
+		record.Raw.Retain()
 		// Custom Arrow data manipulation
 		if len(o.opt.customArrow) > 0 {
+			var cNumRows int64
 			for _, a := range o.opt.customArrow {
-				record.Retain()
-				modRec := a.CustomFunc(ctx, a.DestinationTable, record)
+				record.Raw.Retain()
+				modRec := a.CustomFunc(ctx, a.DestinationTable, record.Raw)
+				cNumRows = cNumRows + modRec.NumRows()
 				_, err := duck.IngestCreateAppend(ctx, a.DestinationTable, modRec)
 				if err != nil {
 					if errorLog != nil {
-						errorLog("quacfka: duck ingestcreateappend %v\n", err)
+						errorLog("quacfka: duck custom arrow ingestcreateappend %v\n", err)
 					}
 					modRec.Release()
-					record.Release()
+					record.Raw.Release()
 					continue
 				}
 				modRec.Release()
-				record.Release()
+				record.Raw.Release()
+			}
+			o.Metrics.customRecordsInserted.Add(cNumRows)
+			if debugLog != nil {
+				debugLog("quacfka: duckdb - custom arrow rows ingested: %d -%d ms-  %f rows/sec\n", cNumRows, time.Since(tick).Milliseconds(), (float64(numRows) / float64(time.Since(tick).Seconds())))
+			}
+		}
+		// Normalizer data insertion
+		if record.Norm != nil {
+			tock := time.Now()
+			nNumRows := record.Norm.NumRows()
+			_, err = duck.IngestCreateAppend(ctx, c.destTable+"_norm", record.Norm)
+			if err != nil {
+				if errorLog != nil {
+					errorLog("quacfka: duck normalizer ingestcreateappend %v\n", err)
+				}
+			} else {
+				o.Metrics.normRecordsInserted.Add(numRows)
+				if debugLog != nil {
+					debugLog("quacfka: duckdb - normalizer arrow rows ingested: %d -%d ms-  %f rows/sec\n", nNumRows, time.Since(tock).Milliseconds(), (float64(numRows) / float64(time.Since(tick).Seconds())))
+				}
 			}
 		}
 		// Insert main record
-		_, err := duck.IngestCreateAppend(ctx, c.destTable, record)
+		_, err := duck.IngestCreateAppend(ctx, c.destTable, record.Raw)
 		if err != nil {
 			if errorLog != nil {
 				errorLog("quacfka: duck ingestcreateappend %v\n", err)
@@ -278,17 +313,17 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 		// If file rotation is enabled, exit every time threshold is met.
 		if o.opt.fileRotateThresholdMB > 0 && path != "" {
 			var s uint64
-			for _, c := range record.Columns() {
+			for _, c := range record.Raw.Columns() {
 				s = s + c.Data().SizeInBytes()
 			}
 			o.Metrics.recordBytes.Add(int64(s))
 			dbSizeAfterInsert := checkDuckDBSizeMB(ctx, duck)
 			if dbSizeAfterInsert+(dbSizeAfterInsert-dbSizeBeforeInsert)/int64(o.DuckConnCount()-1) >= o.opt.fileRotateThresholdMB {
-				record.Release()
+				record.Raw.Release()
 				break
 			}
 		}
-		record.Release()
+		record.Raw.Release()
 	}
 }
 

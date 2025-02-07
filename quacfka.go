@@ -23,11 +23,14 @@ type CustomArrow struct {
 }
 
 type Opt struct {
-	withoutKafka          bool
-	withoutProc           bool
-	withoutDuck           bool
-	fileRotateThresholdMB int64
-	customArrow           []CustomArrow
+	withoutKafka           bool
+	withoutProc            bool
+	withoutDuck            bool
+	fileRotateThresholdMB  int64
+	customArrow            []CustomArrow
+	normalizerFieldStrings []string
+	normalizerAliasStrings []string
+	failOnRangeErr         bool
 }
 
 type (
@@ -75,6 +78,23 @@ func WithFileRotateThresholdMB(p int64) Option {
 	}
 }
 
+func WithNormalizer(fields, aliases []string, failOnRangeError bool) Option {
+	return func(cfg config) {
+		for _, f := range fields {
+			cfg.normalizerFieldStrings = append(cfg.normalizerFieldStrings, f)
+		}
+		for _, a := range aliases {
+			cfg.normalizerAliasStrings = append(cfg.normalizerAliasStrings, a)
+		}
+		cfg.failOnRangeErr = failOnRangeError
+	}
+}
+
+type Record struct {
+	Raw  arrow.Record
+	Norm arrow.Record
+}
+
 type Orchestrator[T proto.Message] struct {
 	bufArrowSchema         *bufa.Schema[T]
 	kafkaConf              *KafkaClientConf[T]
@@ -82,7 +102,7 @@ type Orchestrator[T proto.Message] struct {
 	duckConf               *duckConf
 	duckPaths              chan string
 	mChan                  chan []byte
-	rChan                  chan arrow.Record
+	rChan                  chan Record
 	rChanRecs              atomic.Int32
 	mungeFunc              func([]byte, any) error
 	err                    error
@@ -92,21 +112,35 @@ type Orchestrator[T proto.Message] struct {
 	duckConnCount          atomic.Int32
 	mChanClosed            bool
 	rChanClosed            bool
-	opt                    Opt
+	opt                    *Opt
 }
 
-func NewOrchestrator[T proto.Message]() (*Orchestrator[T], error) {
+func NewOrchestrator[T proto.Message](opts ...Option) (*Orchestrator[T], error) {
 	var err error
 	o := new(Orchestrator[T])
-	o.bufArrowSchema, err = bufa.New[T](memory.DefaultAllocator)
-	if err != nil {
-		return nil, err
+	newOpt := new(Opt)
+	for _, f := range opts {
+		f(newOpt)
 	}
+	o.opt = newOpt
+
+	if len(o.opt.normalizerFieldStrings) > 0 {
+		o.bufArrowSchema, err = bufa.New[T](memory.DefaultAllocator, bufa.WithNormalizer(o.opt.normalizerFieldStrings, o.opt.normalizerAliasStrings, false))
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		o.bufArrowSchema, err = bufa.New[T](memory.DefaultAllocator)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	o.NewKafkaConfig()
 	o.rowGroupSizeMultiplier = 1
 	o.msgProcessorsCount.Store(1)
 	o.duckConnCount.Store(1)
-	o.duckPaths = make(chan string, 1000)
+	o.duckPaths = make(chan string, 100)
 	o.NewMetrics()
 	return o, nil
 }
@@ -118,31 +152,27 @@ func (o *Orchestrator[T]) Close() {
 	}
 }
 
-func (o *Orchestrator[T]) Run(ctx context.Context, wg *sync.WaitGroup, opts ...Option) {
+func (o *Orchestrator[T]) Run(ctx context.Context, wg *sync.WaitGroup) {
 	o.NewMetrics()
 	defer wg.Done()
-	var runOpts Opt
 	var runWG sync.WaitGroup
-	for _, f := range opts {
-		f(&runOpts)
-	}
-	o.opt = runOpts
+
 	if debugLog != nil {
-		debugLog("w/o Kafka: %v\tw/o Proc: %v\tw/o duckdb: %v\trotation threshold MB:%d\n", o.opt.withoutKafka, o.opt.withoutProc, o.opt.withoutDuck, o.opt.fileRotateThresholdMB)
+		debugLog("w/o Kafka: %v\tw/o Proc: %v\tw/o duckdb: %v\trotation threshold MB:%d\tcustom arrows %d\tnormalizer fields %d\n", o.opt.withoutKafka, o.opt.withoutProc, o.opt.withoutDuck, o.opt.fileRotateThresholdMB, len(o.opt.customArrow), len(o.opt.normalizerFieldStrings))
 	}
 	o.StartMetrics()
 	go o.benchmark(ctx)
-	if !runOpts.withoutKafka {
+	if !o.opt.withoutKafka {
 		o.mChan = make(chan []byte, o.kafkaConf.MsgChanCap)
 		runWG.Add(1)
 		go o.startKafka(ctx, &runWG)
 	}
-	if !runOpts.withoutProc && o.Error() == nil {
-		o.rChan = make(chan arrow.Record, o.processorConf.rChanCap)
+	if !o.opt.withoutProc && o.Error() == nil {
+		o.rChan = make(chan Record, o.processorConf.rChanCap)
 		runWG.Add(1)
 		go o.ProcessMessages(ctx, &runWG)
 	}
-	if !runOpts.withoutDuck && o.Error() == nil {
+	if !o.opt.withoutDuck && o.Error() == nil {
 		switch dc := o.duckConf; dc {
 		case nil:
 			o.err = fmt.Errorf("quacfka: %w", ErrMissingDuckDBConfig)
@@ -162,14 +192,17 @@ func (o *Orchestrator[T]) Run(ctx context.Context, wg *sync.WaitGroup, opts ...O
 	runWG.Wait()
 	o.UpdateMetrics()
 }
-func (o *Orchestrator[T]) Error() error                  { return o.err }
-func (o *Orchestrator[T]) Schema() *bufa.Schema[T]       { return o.bufArrowSchema }
-func (o *Orchestrator[T]) MessageChan() chan []byte      { return o.mChan }
-func (o *Orchestrator[T]) RecordChan() chan arrow.Record { return o.rChan }
-func (o *Orchestrator[T]) KafkaClientCount() int         { return int(o.kafkaConf.ClientCount.Load()) }
-func (o *Orchestrator[T]) MsgProcessorsCount() int       { return int(o.msgProcessorsCount.Load()) }
-func (o *Orchestrator[T]) DuckConnCount() int            { return int(o.duckConf.duckConnCount.Load()) }
-func (o *Orchestrator[T]) DuckPaths() chan string        { return o.duckPaths }
+
+func (o *Orchestrator[T]) ArrowQueueCapacity() int  { return o.processorConf.rChanCap }
+func (o *Orchestrator[T]) Error() error             { return o.err }
+func (o *Orchestrator[T]) Schema() *bufa.Schema[T]  { return o.bufArrowSchema }
+func (o *Orchestrator[T]) MessageChan() chan []byte { return o.mChan }
+func (o *Orchestrator[T]) RecordChan() chan Record  { return o.rChan }
+func (o *Orchestrator[T]) KafkaClientCount() int    { return int(o.kafkaConf.ClientCount.Load()) }
+func (o *Orchestrator[T]) KafkaQueueCapacity() int  { return int(o.kafkaConf.MsgChanCap) }
+func (o *Orchestrator[T]) MsgProcessorsCount() int  { return int(o.msgProcessorsCount.Load()) }
+func (o *Orchestrator[T]) DuckConnCount() int       { return int(o.duckConf.duckConnCount.Load()) }
+func (o *Orchestrator[T]) DuckPaths() chan string   { return o.duckPaths }
 func newBufarrowSchema[T proto.Message]() (*bufa.Schema[T], error) {
 	return bufa.New[T](memory.DefaultAllocator)
 }
