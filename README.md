@@ -32,7 +32,19 @@ import "github.com/loicalleyne/quacfka"
 Create a new Orchestrator, configure the Kafka client, processing and DuckDB, then Run().
 Kafka client can be configured with a slice of `franz-go/pkg/kgo.Opt` or SASL user/pass auth.
 ```go
-    o, err := q.NewOrchestrator[*your.CustomProtoMessageType]()
+	import q "github.com/loicalleyne/quacfka"
+	/* 
+	Options:
+	- create with DuckDB file rotation
+	- create with a CustomArrow function to munge the Arrow record in-flight and insert it to another DuckDB table
+	- create with a Normalizer to create a normalized Arrow Record you can write to in your proto decode function
+	- run without Kafka
+	- run without protobuf message decoding
+	- run without duckdb
+	 */
+	normFields := []string{"id", "site.id", "timestamp.seconds", "stores[0].gallery.deals.id"}
+	normAliases := []string{"id", "site", "event_time", "deal"}
+    o, err := q.NewOrchestrator[*your.CustomProtoMessageType](q.WithFileRotateThresholdMB(5000), q.WithCustomArrows([]q.CustomArrow{{CustomFunc: flattenNestedForAgg, DestinationTable: "test"}}),q.WithNormalizer(normFields, normAliases, false))
 	if err != nil {
 		panic(err)
 	}
@@ -56,19 +68,26 @@ Kafka client can be configured with a slice of `franz-go/pkg/kgo.Opt` or SASL us
 		log.Println(err)
 		panic(err)
 	}
-	err = o.ConfigureDuck(q.WithPath("duck.db"), q.WithDriverPath("/usr/local/lib/libduckdb.so"), q.WithDestinationTable("mytable"), q.WithDuckConnections(*duckRoutines))
+	var driverPath string
+	switch runtime.GOOS {
+	case "darwin":
+		driverPath = "/usr/local/lib/libduckdb.so.dylib"
+	case "linux":
+		driverPath = "/usr/local/lib/libduckdb.so"
+	case "windows":
+		h, _ := os.UserHomeDir()
+		driverPath = h + "\\Downloads\\libduckdb-windows-amd64\\duckdb.dll"
+	default:
+	}
+	err = o.ConfigureDuck(q.WithPathPrefix("duck"), q.WithDriverPath(driverPath), q.WithDestinationTable("mytable"), q.WithDuckConnections(*duckRoutines))
 	if err != nil {
 		panic(err)
 	}
 	// Use MockKafka to generate random data for your custom proto to simulate consuming the protobuf from Kafka
 	// wg.Add(1)
 	// go o.MockKafka(ctxT, &wg, &rr.BidRequestEvent{Id: "1233242423243"})
-	// wg.Add(1)
-	// go o.Run(ctxT, &wg, q.WithoutKafka(), q.WithFileRotateThresholdMB(250))
-
 	wg.Add(1)
-	// Run with DuckDB file rotation, and (an optional) CustomArrow function to munge the Arrow record in-flight and insert it to another DuckDB table
-	go o.Run(ctxT, &wg, q.WithFileRotateThresholdMB(5000), q.WithCustomArrows([]q.CustomArrow{{CustomFunc: flattenNestedForAgg, DestinationTable: "test"}}))
+	go o.Run(ctxT, &wg)
 	// Get chan string of closed, rotated DuckDB files
 	duckFiles := o.DuckPaths()
 	...
@@ -89,14 +108,42 @@ func customProtoUnmarshal(m []byte, s any) error {
 		return err
 	}
 	// Assert s to `*bufarrow.Schema[*your.CustomProtoMessageType]`
+	// Populate the Normalizer Arrow Record with flattened data
+	rb := s.(*bufarrow.Schema[*rr.BidRequestEvent]).NormalizerBuilder()
+	if rb != nil {
+		b := rb.Fields()
+		if b != nil {
+			id := newMessage.GetId()
+			site := newMessage.GetSite().GetId()
+			timestampSeconds := newMessage.GetTimestamp().GetSeconds()
+			if len(newMessage.GetStores()[0].GetGallery().GetDeals()) == 0 {
+				b[0].(*array.StringBuilder).Append(id)
+				b[1].(*array.StringBuilder).Append(site)
+				b[2].(*array.Int64Builder).Append(timestampSeconds)
+				b[3].(*array.StringBuilder).AppendNull()
+			}
+			for i := 0; i < len(newMessage.GetImp()[0].GetPmp().GetDeals()); i++ {
+				b[0].(*array.StringBuilder).Append(id)
+				b[1].(*array.StringBuilder).Append(site)
+				b[2].(*array.Int64Builder).Append(timestampSeconds)
+				b[3].(*array.StringBuilder).Append(newMessage.GetImp()[0].GetPmp().GetDeals()[i].GetId())
+			}
+		}
+
+	// Assert s to `*bufarrow.Schema[*your.CustomProtoMessageType]`
 	s.(*bufarrow.Schema[*your.CustomProtoMessageType]).Append(newMessage)
 	newMessage.ReturnToVTPool()
 	return nil
 }
 
+// Custom protobuf wire format bytes munger
+// Confluent Java client adds magic bytes at beginning of message which will cause
+// protobuf decoding to fail if not removed
 func messageMunger(m []byte) []byte {
 	return m[6:]
 }
+
+// Custom Arrow function to build a new Arrow Record from the main processing output Record 
 func flattenNestedForAgg(ctx context.Context, dest string, record arrow.Record) arrow.Record {
 	...
 	return mungedRecord
