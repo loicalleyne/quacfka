@@ -45,6 +45,7 @@ func (o *Orchestrator[T]) NewMetrics() {
 	o.Metrics = new(Metrics)
 	o.Metrics.numCPU.Store(int32(runtime.NumCPU()))
 	o.Metrics.runtimeOS = runtime.GOOS
+	o.Metrics.duckFiles.Store(1)
 }
 
 func (o *Orchestrator[T]) StartMetrics() {
@@ -218,11 +219,11 @@ type MetricsReport struct {
 	KafkaQueueCap      int    `json:"kafka_queue_cap"`
 	ProcessorCount     int    `json:"processor_routines"`
 	ArrowQueueCap      int    `json:"arrow_queue_cap"`
-	DuckConnCount      int    `json:"duckdb_connections"`
+	DuckConnCount      int    `json:"duckdb_connections,omitzero"`
 	CustomArrows       *int   `json:"custom_arrows,omitempty"`
 	NormalizerFields   *int   `json:"normalizer_fields,omitempty"`
 	StartTime          string `json:"start_time"`
-	EndTime            string `json:"end_time"`
+	EndTime            string `json:"end_time,omitzero"`
 	Records            string `json:"records"`
 	NormRecords        string `json:"norm_records"`
 	DataTransferred    string `json:"data_transferred"`
@@ -241,7 +242,7 @@ type TypedMetricsReport struct {
 	KafkaQueueCap      int     `json:"kafka_queue_cap"`
 	ProcessorCount     int     `json:"processor_routines"`
 	ArrowQueueCap      int     `json:"arrow_queue_cap"`
-	DuckConnCount      int     `json:"duckdb_connections"`
+	DuckConnCount      int     `json:"duckdb_connections,omitzero"`
 	CustomArrows       *int    `json:"custom_arrows,omitempty"`
 	NormalizerFields   *int    `json:"normalizer_fields,omitempty"`
 	StartTime          string  `json:"start_time"`

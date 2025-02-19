@@ -26,6 +26,7 @@ type Opt struct {
 	withoutKafka           bool
 	withoutProc            bool
 	withoutDuck            bool
+	withoutDuckIngestRaw   bool
 	fileRotateThresholdMB  int64
 	customArrow            []CustomArrow
 	normalizerFieldStrings []string
@@ -78,15 +79,25 @@ func WithFileRotateThresholdMB(p int64) Option {
 	}
 }
 
+// WithNormalizer configures the scalars to add to a flat Arrow Record suitable for efficient aggregation.
+// Protobuf data with nested messages converted to Arrow records is not only slower to insert into duckdb,
+// running aggregation queries on nested data is much slower(by orders of magnitude).
+// Fields should be specified by their path (field names separated by a period ie. 'field1.field2.field3').
+// The Arrow field types of the selected fields will be used to build the new schema. If coaslescing
+// data between multiple fields of the same type, specify only one of the paths.
+// List fields should have an index to retrieve specified, otherwise defaults to all elements;
+// ranges are not yet implemented.
 func WithNormalizer(fields, aliases []string, failOnRangeError bool) Option {
 	return func(cfg config) {
-		for _, f := range fields {
-			cfg.normalizerFieldStrings = append(cfg.normalizerFieldStrings, f)
-		}
-		for _, a := range aliases {
-			cfg.normalizerAliasStrings = append(cfg.normalizerAliasStrings, a)
-		}
+		cfg.normalizerFieldStrings = append(cfg.normalizerFieldStrings, fields...)
+		cfg.normalizerAliasStrings = append(cfg.normalizerAliasStrings, aliases...)
 		cfg.failOnRangeErr = failOnRangeError
+	}
+}
+
+func WithoutDuckIngestRaw() Option {
+	return func(cfg config) {
+		cfg.withoutDuckIngestRaw = true
 	}
 }
 
@@ -140,14 +151,12 @@ func NewOrchestrator[T proto.Message](opts ...Option) (*Orchestrator[T], error) 
 	o.rowGroupSizeMultiplier = 1
 	o.msgProcessorsCount.Store(1)
 	o.duckConnCount.Store(1)
-	o.duckPaths = make(chan string, 100)
+	o.duckPaths = make(chan string, 10)
 	o.NewMetrics()
 	return o, nil
 }
 func (o *Orchestrator[T]) Close() {
 	if o.duckConf != nil && o.duckConf.quack != nil {
-		// Send db file path to channel for further aggregations/querying
-		o.duckPaths <- o.duckConf.quack.Path()
 		o.duckConf.quack.Close()
 	}
 }

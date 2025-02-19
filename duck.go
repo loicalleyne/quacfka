@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -22,6 +23,7 @@ type duckConf struct {
 	destTable      string
 	duckConnCount  atomic.Int32
 	destTableIndex atomic.Int32
+	runner         *DuckRunner
 }
 
 type duckJob struct {
@@ -29,6 +31,104 @@ type duckJob struct {
 	destTable string
 	rChan     chan Record
 	wg        *sync.WaitGroup
+}
+
+type DuckRunner struct {
+	parent         *duckConf
+	path           string
+	queryFunc      func(*DuckRunner) error
+	queries        []string
+	exec           bool
+	deleteDBOnDone bool
+	err            error
+}
+
+// AddQueries adds queries to a runner and sets whether the runner should use RunExec instead of RunFunc to run the queries (RunExec should be used when no results from queries are expected).
+func (d *DuckRunner) AddQueries(queries []string, exec bool) {
+	d.queries = append(d.queries, queries...)
+	d.exec = exec
+}
+func (d *DuckRunner) Err() error                        { return d.err }
+func (d *DuckRunner) IsDeleteDBOnDone() bool            { return d.deleteDBOnDone }
+func (d *DuckRunner) Path() string                      { return d.path }
+func (d *DuckRunner) Queries() []string                 { return d.queries }
+func (d *DuckRunner) IsExec() bool                      { return d.exec }
+func (d *DuckRunner) SetFunc(f func(*DuckRunner) error) { d.queryFunc = f }
+func (d *DuckRunner) SetErr(err error)                  { d.err = errors.Join(d.err, err) }
+func (d *DuckRunner) SetPath(p string)                  { d.path = p }
+func (d *DuckRunner) SetDeleteOnDone(b bool)            { d.deleteDBOnDone = b }
+func (d *DuckRunner) GetDB() *couac.Quacker {
+	if d.parent != nil && d.parent.quack != nil {
+		return d.parent.quack
+	}
+	return nil
+}
+
+// Run runs the defined queries, if exec is set to true does not expect queries to return any results
+// otherwise will use query function to coordinate queries.
+// Exec set to true is meant for running queries that aggregate to another table as well
+// as EXPORT/COPY TO statements.
+func (d *DuckRunner) Run(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if len(d.Queries()) == 0 {
+		return fmt.Errorf("no queries specified")
+	}
+	if d.parent == nil {
+		return fmt.Errorf("runner has no parent")
+	}
+	db := d.GetDB()
+	if db == nil {
+		return fmt.Errorf("runner parent db not open")
+	}
+	if !d.exec && d.queryFunc == nil {
+		return fmt.Errorf("runner query func not set")
+	}
+	d.path = db.Path()
+	switch d.exec {
+	case false:
+		err := d.queryFunc(d)
+		if err != nil {
+			if errorLog != nil {
+				errorLog("quacfka: runfunc %s error: %w", d.Path(), err)
+			}
+			d.SetErr(fmt.Errorf("quacfka: runfunc %s error: %w", d.Path(), err))
+			return fmt.Errorf("quacfka: runfunc %s error: %w", d.Path(), err)
+		}
+	case true:
+		conn, err := db.NewConnection()
+		if err != nil {
+			if errorLog != nil {
+				errorLog("quacfka: runexec newconnection %v\n", err)
+			}
+			d.err = fmt.Errorf("quacfka: runexec newconnection %w", err)
+			return fmt.Errorf("quacfka: runexec newconnection %w", err)
+		}
+		for _, query := range d.queries {
+			_, err := conn.Exec(ctx, query)
+			if err != nil {
+				if errorLog != nil {
+					errorLog("quacfka: runexec exec %v\n", err)
+				}
+				d.err = fmt.Errorf("quacfka: runexec exec %w", err)
+				return fmt.Errorf("quacfka: runexec exec %w", err)
+			}
+		}
+	}
+
+	if d.deleteDBOnDone {
+		db.Close()
+		err := os.Remove(d.path)
+		if err != nil {
+			if errorLog != nil {
+				errorLog("quacfka: runner remove %v - %s\n", err, d.path)
+			}
+			d.SetErr(fmt.Errorf("quacfka: runner remove %w - %s", err, d.path))
+			return fmt.Errorf("quacfka: runner remove %w - %s", err, d.path)
+		}
+	}
+	return nil
 }
 
 type (
@@ -63,6 +163,13 @@ func WithDestinationTable(p string) DuckOption {
 func WithDuckConnections(p int) DuckOption {
 	return func(cfg duckConfig) {
 		cfg.duckConnCount.Store(int32(p))
+	}
+}
+
+func WithDuckRunner(p *DuckRunner) DuckOption {
+	return func(cfg duckConfig) {
+		p.parent = cfg
+		cfg.runner = p
 	}
 }
 
@@ -130,13 +237,25 @@ func (o *Orchestrator[T]) DuckIngestWithRotate(ctx context.Context, w *sync.Wait
 			o.Metrics.recordBytes.Store(0)
 			// record cumulative size of duckdb files
 			o.Metrics.duckFilesSizeMB.Add(o.CurrentDBSize())
-			o.duckConf.quack.Close()
-			o.duckPaths <- o.duckConf.quack.Path()
+			if o.duckConf.runner != nil {
+				err := o.duckConf.runner.Run(ctx)
+				if err != nil {
+					if errorLog != nil {
+						errorLog("quacfka: duckdb runner error - %w\n", err)
+					}
+					o.err = errors.Join(o.err, err)
+				}
+			}
+			if o.duckConf.runner == nil || (o.duckConf.runner != nil && !o.duckConf.runner.IsDeleteDBOnDone()) {
+				o.duckConf.quack.Close()
+				o.duckPaths <- o.duckConf.quack.Path()
+			}
 			if !(o.rChanClosed && o.rChanRecs.Load() == 0) {
 				o.configureDuck(o.duckConf)
 			}
 		}
 	}
+	close(o.duckPaths)
 }
 
 func (o *Orchestrator[T]) DuckIngest(ctx context.Context, w *sync.WaitGroup) {
@@ -163,8 +282,8 @@ func (o *Orchestrator[T]) DuckIngest(ctx context.Context, w *sync.WaitGroup) {
 		if !ok {
 			o.rChanClosed = true
 		}
-		if record.Raw != nil {
-			if len(o.opt.customArrow) > 0 {
+		if len(o.opt.customArrow) > 0 {
+			if record.Raw != nil {
 				for _, a := range o.opt.customArrow {
 					record.Raw.Retain()
 					modRec := a.CustomFunc(ctx, a.DestinationTable, record.Raw)
@@ -181,16 +300,6 @@ func (o *Orchestrator[T]) DuckIngest(ctx context.Context, w *sync.WaitGroup) {
 					record.Raw.Release()
 				}
 			}
-			numRows := record.Raw.NumRows()
-			_, err = duck.IngestCreateAppend(ctx, d.destTable, record.Raw)
-			if err != nil {
-				if errorLog != nil {
-					errorLog("quacfka: duck ingestcreateappend %v\n", err)
-				}
-			} else {
-				o.rChanRecs.Add(-1)
-				o.Metrics.recordsInserted.Add(numRows)
-			}
 		}
 		if record.Norm != nil {
 			numRows := record.Norm.NumRows()
@@ -203,6 +312,18 @@ func (o *Orchestrator[T]) DuckIngest(ctx context.Context, w *sync.WaitGroup) {
 				o.Metrics.normRecordsInserted.Add(numRows)
 			}
 		}
+		if !o.opt.withoutDuckIngestRaw && record.Raw != nil {
+			numRows := record.Raw.NumRows()
+			_, err = duck.IngestCreateAppend(ctx, d.destTable, record.Raw)
+			if err != nil {
+				if errorLog != nil {
+					errorLog("quacfka: duck ingestcreateappend %v\n", err)
+				}
+			} else {
+				o.Metrics.recordsInserted.Add(numRows)
+			}
+		}
+		o.rChanRecs.Add(-1)
 	default:
 	}
 	if o.shouldRotateFile(ctx, duck) {
@@ -224,6 +345,7 @@ func (o *Orchestrator[T]) DuckIngest(ctx context.Context, w *sync.WaitGroup) {
 	cwg.Wait()
 	if o.opt.fileRotateThresholdMB == 0 && o.duckConf.quack.Path() != "" {
 		o.duckPaths <- o.duckConf.quack.Path()
+		close(o.duckPaths)
 		o.duckConf.quack.Close()
 	}
 }
@@ -260,26 +382,29 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 		record.Raw.Retain()
 		// Custom Arrow data manipulation
 		if len(o.opt.customArrow) > 0 {
-			var cNumRows int64
-			for _, a := range o.opt.customArrow {
-				record.Raw.Retain()
-				modRec := a.CustomFunc(ctx, a.DestinationTable, record.Raw)
-				cNumRows = cNumRows + modRec.NumRows()
-				_, err := duck.IngestCreateAppend(ctx, a.DestinationTable, modRec)
-				if err != nil {
-					if errorLog != nil {
-						errorLog("quacfka: duck custom arrow ingestcreateappend %v\n", err)
+			if record.Raw != nil {
+				var cNumRows int64
+				for _, a := range o.opt.customArrow {
+
+					record.Raw.Retain()
+					modRec := a.CustomFunc(ctx, a.DestinationTable, record.Raw)
+					cNumRows = cNumRows + modRec.NumRows()
+					_, err := duck.IngestCreateAppend(ctx, a.DestinationTable, modRec)
+					if err != nil {
+						if errorLog != nil {
+							errorLog("quacfka: duck custom arrow ingestcreateappend %v\n", err)
+						}
+						modRec.Release()
+						record.Raw.Release()
+						continue
 					}
 					modRec.Release()
 					record.Raw.Release()
-					continue
 				}
-				modRec.Release()
-				record.Raw.Release()
-			}
-			o.Metrics.customRecordsInserted.Add(cNumRows)
-			if debugLog != nil {
-				debugLog("quacfka: duckdb - custom arrow rows ingested: %d -%d ms-  %f rows/sec\n", cNumRows, time.Since(tick).Milliseconds(), (float64(numRows) / float64(time.Since(tick).Seconds())))
+				o.Metrics.customRecordsInserted.Add(cNumRows)
+				if debugLog != nil {
+					debugLog("quacfka: duckdb - custom arrow rows ingested: %d -%d ms-  %f rows/sec\n", cNumRows, time.Since(tick).Milliseconds(), (float64(numRows) / float64(time.Since(tick).Seconds())))
+				}
 			}
 		}
 		// Normalizer data insertion
@@ -299,24 +424,22 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 			}
 		}
 		// Insert main record
-		_, err := duck.IngestCreateAppend(ctx, c.destTable, record.Raw)
-		if err != nil {
-			if errorLog != nil {
-				errorLog("quacfka: duck ingestcreateappend %v\n", err)
-			}
-		} else {
-			o.Metrics.recordsInserted.Add(numRows)
-			if debugLog != nil {
-				debugLog("quacfka: duckdb - rows ingested: %d -%d ms-  %f rows/sec\n", numRows, time.Since(tick).Milliseconds(), (float64(numRows) / float64(time.Since(tick).Seconds())))
+		if !o.opt.withoutDuckIngestRaw {
+			_, err := duck.IngestCreateAppend(ctx, c.destTable, record.Raw)
+			if err != nil {
+				if errorLog != nil {
+					errorLog("quacfka: duck ingestcreateappend %v\n", err)
+				}
+			} else {
+				o.Metrics.recordsInserted.Add(numRows)
+				if debugLog != nil {
+					debugLog("quacfka: duckdb - rows ingested: %d -%d ms-  %f rows/sec\n", numRows, time.Since(tick).Milliseconds(), (float64(numRows) / float64(time.Since(tick).Seconds())))
+				}
 			}
 		}
+
 		// If file rotation is enabled, exit every time threshold is met.
 		if o.opt.fileRotateThresholdMB > 0 && path != "" {
-			var s uint64
-			for _, c := range record.Raw.Columns() {
-				s = s + c.Data().SizeInBytes()
-			}
-			o.Metrics.recordBytes.Add(int64(s))
 			dbSizeAfterInsert := checkDuckDBSizeMB(ctx, duck)
 			if dbSizeAfterInsert+(dbSizeAfterInsert-dbSizeBeforeInsert)/int64(o.DuckConnCount()-1) >= o.opt.fileRotateThresholdMB {
 				record.Raw.Release()

@@ -74,6 +74,11 @@ func (o *Orchestrator[T]) NewKafkaConfig() *KafkaClientConf[T] {
 	return o.kafkaConf
 }
 
+// WithMessageCutConfluencePrefix removes 6 bytes that Confluence producer adds for schema registry metadata.
+func WithMessageCutConfluencePrefix(m []byte) []byte {
+	return m[6:]
+}
+
 func consumeKafka[T proto.Message](k any) {
 	var (
 		cl  *kgo.Client
