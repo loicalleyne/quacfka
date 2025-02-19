@@ -248,7 +248,9 @@ func (o *Orchestrator[T]) DuckIngestWithRotate(ctx context.Context, w *sync.Wait
 			}
 			if o.duckConf.runner == nil || (o.duckConf.runner != nil && !o.duckConf.runner.IsDeleteDBOnDone()) {
 				o.duckConf.quack.Close()
-				o.duckPaths <- o.duckConf.quack.Path()
+				if o.opt.withDuckPathsChan {
+					o.duckPaths <- o.duckConf.quack.Path()
+				}
 			}
 			if !(o.rChanClosed && o.rChanRecs.Load() == 0) {
 				o.configureDuck(o.duckConf)

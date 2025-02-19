@@ -27,6 +27,7 @@ type Opt struct {
 	withoutProc            bool
 	withoutDuck            bool
 	withoutDuckIngestRaw   bool
+	withDuckPathsChan      bool
 	fileRotateThresholdMB  int64
 	customArrow            []CustomArrow
 	normalizerFieldStrings []string
@@ -54,6 +55,12 @@ func WithoutProcessing() Option {
 func WithoutDuck() Option {
 	return func(cfg config) {
 		cfg.withoutDuck = true
+	}
+}
+
+func WithDuckPathsChan() Option {
+	return func(cfg config) {
+		cfg.withDuckPathsChan = true
 	}
 }
 
@@ -151,7 +158,7 @@ func NewOrchestrator[T proto.Message](opts ...Option) (*Orchestrator[T], error) 
 	o.rowGroupSizeMultiplier = 1
 	o.msgProcessorsCount.Store(1)
 	o.duckConnCount.Store(1)
-	o.duckPaths = make(chan string, 10)
+	o.duckPaths = make(chan string, 10000)
 	o.NewMetrics()
 	return o, nil
 }
