@@ -201,6 +201,7 @@ func (o *Orchestrator[T]) generateBenchmarksReport() MetricsReport {
 		KafkaClientCount:   o.KafkaClientCount(),
 		ProcessorCount:     o.MsgProcessorsCount(),
 		ArrowQueueCap:      o.processorConf.rChanCap,
+		DuckDBThresholdMB:  int(o.opt.fileRotateThresholdMB),
 		DuckConnCount:      o.DuckConnCount(),
 		StartTime:          o.Metrics.startTime.Format(time.RFC3339),
 		EndTime:            o.Metrics.benchEndTime.Format(time.RFC3339),
@@ -248,6 +249,7 @@ type MetricsReport struct {
 	KafkaQueueCap      int    `json:"kafka_queue_cap"`
 	ProcessorCount     int    `json:"processor_routines"`
 	ArrowQueueCap      int    `json:"arrow_queue_cap"`
+	DuckDBThresholdMB  int    `json:"duckdb_threshold_mb`
 	DuckConnCount      int    `json:"duckdb_connections,omitzero"`
 	CustomArrows       *int   `json:"custom_arrows,omitempty"`
 	NormalizerFields   *int   `json:"normalizer_fields,omitempty"`
@@ -272,6 +274,7 @@ type TypedMetricsReport struct {
 	KafkaQueueCap      int     `json:"kafka_queue_cap"`
 	ProcessorCount     int     `json:"processor_routines"`
 	ArrowQueueCap      int     `json:"arrow_queue_cap"`
+	DuckDBThresholdMB  int     `json:"duckdb_threshold_mb`
 	DuckConnCount      int     `json:"duckdb_connections,omitzero"`
 	CustomArrows       *int    `json:"custom_arrows,omitempty"`
 	NormalizerFields   *int    `json:"normalizer_fields,omitempty"`
@@ -316,6 +319,7 @@ func (o *Orchestrator[T]) generateMetricsReport() MetricsReport {
 		KafkaQueueCap:      o.KafkaQueueCapacity(),
 		ProcessorCount:     o.MsgProcessorsCount(),
 		ArrowQueueCap:      o.ArrowQueueCapacity(),
+		DuckDBThresholdMB:  int(o.opt.fileRotateThresholdMB),
 		DuckConnCount:      o.DuckConnCount(),
 		CustomArrows:       customArrows,
 		NormalizerFields:   normFieldCount,
@@ -360,6 +364,7 @@ func (o *Orchestrator[T]) generateUnformatedMetricsReport() TypedMetricsReport {
 		KafkaQueueCap:      o.KafkaQueueCapacity(),
 		ProcessorCount:     o.MsgProcessorsCount(),
 		ArrowQueueCap:      o.ArrowQueueCapacity(),
+		DuckDBThresholdMB:  int(o.opt.fileRotateThresholdMB),
 		DuckConnCount:      o.DuckConnCount(),
 		CustomArrows:       customArrows,
 		NormalizerFields:   normFieldCount,
