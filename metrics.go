@@ -200,6 +200,7 @@ func (o *Orchestrator[T]) generateBenchmarksReport() MetricsReport {
 		RuntimeOS:          o.Metrics.runtimeOS,
 		KafkaClientCount:   o.KafkaClientCount(),
 		ProcessorCount:     o.MsgProcessorsCount(),
+		ArrowQueueCap:      o.processorConf.rChanCap,
 		DuckConnCount:      o.DuckConnCount(),
 		StartTime:          o.Metrics.startTime.Format(time.RFC3339),
 		EndTime:            o.Metrics.benchEndTime.Format(time.RFC3339),
