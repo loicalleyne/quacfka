@@ -387,7 +387,6 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 			debugLog("quacfka: duck inserter - pull record - %d\n", o.rChanRecs.Load())
 		}
 		numRows = record.Raw.NumRows()
-		record.Raw.Retain()
 		// Custom Arrow data manipulation
 		if len(o.opt.customArrow) > 0 {
 			if record.Raw != nil {
@@ -450,11 +449,9 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 		if o.opt.fileRotateThresholdMB > 0 && path != "" {
 			dbSizeAfterInsert := checkDuckDBSizeMB(ctx, duck)
 			if dbSizeAfterInsert+(dbSizeAfterInsert-dbSizeBeforeInsert)/int64(o.DuckConnCount()-1) >= o.opt.fileRotateThresholdMB {
-				record.Raw.Release()
 				break
 			}
 		}
-		record.Raw.Release()
 	}
 }
 
