@@ -132,7 +132,7 @@ func (o *Orchestrator[T]) benchmark(ctx context.Context) {
 		if o.rChan != nil && o.Metrics.maxRChanLen.Load() < int32(len(o.rChan)) {
 			o.Metrics.maxRChanLen.Store(int32(len(o.rChan)))
 		}
-		delay := time.NewTimer(10 * time.Second)
+		delay := time.NewTimer(30 * time.Second)
 		select {
 		case <-ctx.Done():
 			return
