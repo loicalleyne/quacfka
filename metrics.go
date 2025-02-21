@@ -249,7 +249,7 @@ type MetricsReport struct {
 	KafkaQueueCap      int    `json:"kafka_queue_cap"`
 	ProcessorCount     int    `json:"processor_routines"`
 	ArrowQueueCap      int    `json:"arrow_queue_cap"`
-	DuckDBThresholdMB  int    `json:"duckdb_threshold_mb`
+	DuckDBThresholdMB  int    `json:"duckdb_threshold_mb"`
 	DuckConnCount      int    `json:"duckdb_connections,omitzero"`
 	CustomArrows       *int   `json:"custom_arrows,omitempty"`
 	NormalizerFields   *int   `json:"normalizer_fields,omitempty"`
@@ -274,7 +274,7 @@ type TypedMetricsReport struct {
 	KafkaQueueCap      int     `json:"kafka_queue_cap"`
 	ProcessorCount     int     `json:"processor_routines"`
 	ArrowQueueCap      int     `json:"arrow_queue_cap"`
-	DuckDBThresholdMB  int     `json:"duckdb_threshold_mb`
+	DuckDBThresholdMB  int     `json:"duckdb_threshold_mb"`
 	DuckConnCount      int     `json:"duckdb_connections,omitzero"`
 	CustomArrows       *int    `json:"custom_arrows,omitempty"`
 	NormalizerFields   *int    `json:"normalizer_fields,omitempty"`
