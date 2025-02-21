@@ -219,7 +219,7 @@ func (o *Orchestrator[T]) configureDuck(d *duckConf) error {
 	if err != nil {
 		return fmt.Errorf("duckdb config error: %w", err)
 	}
-	o.Metrics.duckFiles.Add(1)
+	o.Metrics.duckMetrics.duckFiles.Add(1)
 	return nil
 }
 
@@ -229,6 +229,7 @@ func (o *Orchestrator[T]) DuckIngestWithRotate(ctx context.Context, w *sync.Wait
 	for !(o.rChanClosed && o.rChanRecs.Load() == 0) {
 		if o.rChanRecs.Load() > 0 {
 			rwg.Add(1)
+			o.Metrics.duckMetrics.duckStart()
 			go o.DuckIngest(context.Background(), &rwg)
 			rwg.Wait()
 			if debugLog != nil {
@@ -236,7 +237,10 @@ func (o *Orchestrator[T]) DuckIngestWithRotate(ctx context.Context, w *sync.Wait
 			}
 			o.Metrics.recordBytes.Store(0)
 			// record cumulative size of duckdb files
-			o.Metrics.duckFilesSizeMB.Add(o.CurrentDBSize())
+			duckDBSize := o.CurrentDBSize()
+			o.Metrics.duckMetrics.duckFilesSizeMB.Add(duckDBSize)
+
+			// runner to run queries on db before close
 			if o.duckConf.runner != nil {
 				err := o.duckConf.runner.Run(ctx)
 				if err != nil {
@@ -248,10 +252,12 @@ func (o *Orchestrator[T]) DuckIngestWithRotate(ctx context.Context, w *sync.Wait
 			}
 			if o.duckConf.runner == nil || (o.duckConf.runner != nil && !o.duckConf.runner.IsDeleteDBOnDone()) {
 				o.duckConf.quack.Close()
+				// send duckPath to channel for external consumption
 				if o.opt.withDuckPathsChan {
 					o.duckPaths <- o.duckConf.quack.Path()
 				}
 			}
+			o.Metrics.duckMetrics.duckStop(duckDBSize)
 			if !(o.rChanClosed && o.rChanRecs.Load() == 0) {
 				o.configureDuck(o.duckConf)
 			}
