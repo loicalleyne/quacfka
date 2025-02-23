@@ -155,15 +155,17 @@ func NewOrchestrator[T proto.Message](opts ...Option) (*Orchestrator[T], error) 
 			return nil, err
 		}
 	}
-	if o.opt.duckPathChanCap < 1 {
-		return nil, fmt.Errorf("invalid duck path channel capacity: %d", o.opt.duckPathChanCap)
-	}
 
+	if o.opt.withDuckPathsChan {
+		if o.opt.duckPathChanCap < 1 {
+			return nil, fmt.Errorf("invalid duck path channel capacity: %d", o.opt.duckPathChanCap)
+		}
+		o.duckPaths = make(chan string, o.opt.duckPathChanCap)
+	}
 	o.NewKafkaConfig()
 	o.rowGroupSizeMultiplier = 1
 	o.msgProcessorsCount.Store(1)
 	o.duckConnCount.Store(1)
-	o.duckPaths = make(chan string, o.opt.duckPathChanCap)
 	o.NewMetrics()
 	return o, nil
 }
