@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -285,6 +286,16 @@ func (o *Orchestrator[T]) DuckIngest(ctx context.Context, w *sync.WaitGroup) {
 		return
 	}
 	defer duck.Close()
+	switch runtime.GOOS {
+	case "linux":
+		_, err = duck.Exec(context.Background(), "SET allocator_background_threads = true")
+		if err != nil {
+			if errorLog != nil {
+				errorLog("quacfka: set allocator_background_threads = true error: %v", err)
+			}
+		}
+	default:
+	}
 	select {
 	case record, ok := <-o.rChan:
 		if !ok {
