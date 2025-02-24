@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -377,6 +378,22 @@ func (o *Orchestrator[T]) shouldRotateFile(ctx context.Context, duck *couac.Quac
 }
 
 func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
+	debug.SetPanicOnFault(true)
+	defer func() {
+		e := recover()
+		if e != nil {
+			switch x := e.(type) {
+			case error:
+				err = x
+			case string:
+				err = errors.New(x)
+			default:
+				if errorLog != nil {
+					errorLog("quacfka: adbc panic %v\n", err)
+				}
+			}
+		}
+	}()
 	var tick time.Time
 	path := c.quack.Path()
 	defer c.wg.Done()
