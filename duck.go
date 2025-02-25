@@ -265,7 +265,9 @@ func (o *Orchestrator[T]) DuckIngestWithRotate(ctx context.Context, w *sync.Wait
 			}
 		}
 	}
-	close(o.duckPaths)
+	if o.opt.withDuckPathsChan {
+		close(o.duckPaths)
+	}
 }
 
 func (o *Orchestrator[T]) DuckIngest(ctx context.Context, w *sync.WaitGroup) {
@@ -474,6 +476,10 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 				if debugLog != nil {
 					debugLog("quacfka: duckdb - rows ingested: %d -%d ms-  %f rows/sec\n", numRows, time.Since(tick).Milliseconds(), (float64(numRows) / float64(time.Since(tick).Seconds())))
 				}
+			}
+		} else {
+			if record.Raw != nil {
+				record.Raw.Release()
 			}
 		}
 
