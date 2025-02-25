@@ -458,7 +458,7 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 					errorLog("quacfka: duck normalizer ingestcreateappend %v\n", err)
 				}
 			} else {
-				o.Metrics.normRecordsInserted.Add(numRows)
+				o.Metrics.normRecordsInserted.Add(nNumRows)
 				if debugLog != nil {
 					debugLog("quacfka: duckdb - normalizer arrow rows ingested: %d -%d ms-  %f rows/sec\n", nNumRows, time.Since(tock).Milliseconds(), (float64(nNumRows) / float64(time.Since(tick).Seconds())))
 				}
