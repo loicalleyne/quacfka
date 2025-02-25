@@ -460,7 +460,7 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 			} else {
 				o.Metrics.normRecordsInserted.Add(numRows)
 				if debugLog != nil {
-					debugLog("quacfka: duckdb - normalizer arrow rows ingested: %d -%d ms-  %f rows/sec\n", nNumRows, time.Since(tock).Milliseconds(), (float64(numRows) / float64(time.Since(tick).Seconds())))
+					debugLog("quacfka: duckdb - normalizer arrow rows ingested: %d -%d ms-  %f rows/sec\n", nNumRows, time.Since(tock).Milliseconds(), (float64(nNumRows) / float64(time.Since(tick).Seconds())))
 				}
 			}
 		}
