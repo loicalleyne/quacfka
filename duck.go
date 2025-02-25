@@ -382,6 +382,7 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 	defer func() {
 		e := recover()
 		if e != nil {
+			var err error
 			switch x := e.(type) {
 			case error:
 				err = x
@@ -389,8 +390,11 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 				err = errors.New(x)
 			default:
 				if errorLog != nil {
-					errorLog("quacfka: adbc panic %v\n", err)
+					errorLog("quacfka: adbc panic %v\n", e)
 				}
+			}
+			if errorLog != nil {
+				errorLog("quacfka: adbc panic %v\n", err)
 			}
 		}
 	}()
