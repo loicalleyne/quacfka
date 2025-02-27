@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -263,7 +265,9 @@ func (o *Orchestrator[T]) DuckIngestWithRotate(ctx context.Context, w *sync.Wait
 			}
 		}
 	}
-	close(o.duckPaths)
+	if o.opt.withDuckPathsChan {
+		close(o.duckPaths)
+	}
 }
 
 func (o *Orchestrator[T]) DuckIngest(ctx context.Context, w *sync.WaitGroup) {
@@ -285,6 +289,16 @@ func (o *Orchestrator[T]) DuckIngest(ctx context.Context, w *sync.WaitGroup) {
 		return
 	}
 	defer duck.Close()
+	switch runtime.GOOS {
+	case "linux":
+		_, err = duck.Exec(context.Background(), "SET allocator_background_threads = true")
+		if err != nil {
+			if errorLog != nil {
+				errorLog("quacfka: set allocator_background_threads = true error: %v", err)
+			}
+		}
+	default:
+	}
 	select {
 	case record, ok := <-o.rChan:
 		if !ok {
@@ -366,6 +380,26 @@ func (o *Orchestrator[T]) shouldRotateFile(ctx context.Context, duck *couac.Quac
 }
 
 func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
+	debug.SetPanicOnFault(true)
+	defer func() {
+		e := recover()
+		if e != nil {
+			var err error
+			switch x := e.(type) {
+			case error:
+				err = x
+			case string:
+				err = errors.New(x)
+			default:
+				if errorLog != nil {
+					errorLog("quacfka: adbc panic %v\n", e)
+				}
+			}
+			if errorLog != nil {
+				errorLog("quacfka: adbc panic %v\n", err)
+			}
+		}
+	}()
 	var tick time.Time
 	path := c.quack.Path()
 	defer c.wg.Done()
@@ -386,7 +420,6 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 			tick = time.Now()
 			debugLog("quacfka: duck inserter - pull record - %d\n", o.rChanRecs.Load())
 		}
-		numRows = record.Raw.NumRows()
 		// Custom Arrow data manipulation
 		if len(o.opt.customArrow) > 0 {
 			if record.Raw != nil {
@@ -424,14 +457,15 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 					errorLog("quacfka: duck normalizer ingestcreateappend %v\n", err)
 				}
 			} else {
-				o.Metrics.normRecordsInserted.Add(numRows)
+				o.Metrics.normRecordsInserted.Add(nNumRows)
 				if debugLog != nil {
-					debugLog("quacfka: duckdb - normalizer arrow rows ingested: %d -%d ms-  %f rows/sec\n", nNumRows, time.Since(tock).Milliseconds(), (float64(numRows) / float64(time.Since(tick).Seconds())))
+					debugLog("quacfka: duckdb - normalizer arrow rows ingested: %d -%d ms-  %f rows/sec\n", nNumRows, time.Since(tock).Milliseconds(), (float64(nNumRows) / float64(time.Since(tick).Seconds())))
 				}
 			}
 		}
 		// Insert main record
 		if !o.opt.withoutDuckIngestRaw {
+			numRows = record.Raw.NumRows()
 			_, err := duck.IngestCreateAppend(ctx, c.destTable, record.Raw)
 			if err != nil {
 				if errorLog != nil {
@@ -442,6 +476,10 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 				if debugLog != nil {
 					debugLog("quacfka: duckdb - rows ingested: %d -%d ms-  %f rows/sec\n", numRows, time.Since(tick).Milliseconds(), (float64(numRows) / float64(time.Since(tick).Seconds())))
 				}
+			}
+		} else {
+			if record.Raw != nil {
+				record.Raw.Release()
 			}
 		}
 
