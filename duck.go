@@ -420,7 +420,6 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 			tick = time.Now()
 			debugLog("quacfka: duck inserter - pull record - %d\n", o.rChanRecs.Load())
 		}
-		numRows = record.Raw.NumRows()
 		// Custom Arrow data manipulation
 		if len(o.opt.customArrow) > 0 {
 			if record.Raw != nil {
@@ -466,6 +465,7 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 		}
 		// Insert main record
 		if !o.opt.withoutDuckIngestRaw {
+			numRows = record.Raw.NumRows()
 			_, err := duck.IngestCreateAppend(ctx, c.destTable, record.Raw)
 			if err != nil {
 				if errorLog != nil {
