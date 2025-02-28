@@ -45,7 +45,7 @@ type DuckRunner struct {
 	err            error
 }
 
-// AddQueries adds queries to a runner and sets whether the runner should use RunExec instead of RunFunc to run the queries (RunExec should be used when no results from queries are expected).
+// AddQueries adds queries to a DuckRunner and sets whether the runner should use RunExec instead of RunFunc to run the queries (RunExec should be used when no results from queries are expected).
 func (d *DuckRunner) AddQueries(queries []string, exec bool) {
 	d.queries = append(d.queries, queries...)
 	d.exec = exec
@@ -168,6 +168,13 @@ func WithDuckConnections(p int) DuckOption {
 	}
 }
 
+// Run queries in series after writes to db file are completed before rotating to next db file.
+// Usage:
+// exec := new(q.DuckRunner)
+// exec.AddQueries(queries, false)
+// exec.SetFunc(RunAggs)
+// exec.SetDeleteOnDone(true)
+// err = o.ConfigureDuck(q.WithPathPrefix("reqlog"), q.WithDriverPath(driverPath), q.WithDestinationTable("req"), q.WithDuckConnections(24), q.WithDuckRunner(exec))
 func WithDuckRunner(p *DuckRunner) DuckOption {
 	return func(cfg duckConfig) {
 		p.parent = cfg
@@ -271,6 +278,26 @@ func (o *Orchestrator[T]) DuckIngestWithRotate(ctx context.Context, w *sync.Wait
 }
 
 func (o *Orchestrator[T]) DuckIngest(ctx context.Context, w *sync.WaitGroup) {
+	debug.SetPanicOnFault(true)
+	defer func() {
+		e := recover()
+		if e != nil {
+			var err error
+			switch x := e.(type) {
+			case error:
+				err = x
+			case string:
+				err = errors.New(x)
+			default:
+				if errorLog != nil {
+					errorLog("quacfka: adbc panic %v\n", e)
+				}
+			}
+			if errorLog != nil {
+				errorLog("quacfka: adbc panic %v\n", err)
+			}
+		}
+	}()
 	defer w.Done()
 	dpool, _ := ants.NewPoolWithFuncGeneric[*duckJob](o.DuckConnCount(), o.adbcInsert, ants.WithPreAlloc(true))
 	defer dpool.Release()

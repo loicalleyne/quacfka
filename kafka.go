@@ -213,6 +213,12 @@ func (o *Orchestrator[T]) startKafka(ctx context.Context, w *sync.WaitGroup) {
 	o.mChanClosed = true
 }
 
+// MockKafka produces protobuf messages with random data in each field to the message channel.
+// An initialized message with at least one field containing data must be passed as an argument
+// for generation to work.
+// Usage:
+// wg.Add(1)
+// go o.MockKafka(ctxT, &wg, &gen.RequestEvent{Id: "1233242423243"})
 func (o *Orchestrator[T]) MockKafka(ctx context.Context, w *sync.WaitGroup, p T) {
 	defer w.Done()
 
