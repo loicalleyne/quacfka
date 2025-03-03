@@ -149,13 +149,27 @@ func flattenNestedForAgg(ctx context.Context, dest string, record arrow.Record) 
 	return mungedRecord
 }
 // {
-//   "start_time": "2025-01-30T23:59:33Z",
-//   "end_time": "2025-01-31T00:04:09Z",
-//   "records": "152_838_106.00",
-//   "data_transferred": "176.14 GB",
-//   "duration": "4m36.229s",
-//   "records_per_second": "553_301.35",
-//   "transfer_rate": "652.95 MB/second"
+//   "num_cpu": 60,
+//   "runtime_os": "linux",
+//   "kafka_clients": 5,
+//   "kafka_queue_cap": 983040,
+//   "processor_routines": 32,
+//   "arrow_queue_cap": 4,
+//   "duckdb_threshold_mb": 4200,
+//   "duckdb_connections": 24,
+//   "normalizer_fields": 10,
+//   "start_time": "2025-02-24T21:06:23Z",
+//   "end_time": "2025-02-24T21:11:23Z",
+//   "records": "123_686_901.00",
+//   "norm_records": "122_212_452.00",
+//   "data_transferred": "146.53 GB",
+//   "duration": "4m59.585s",
+//   "records_per_second": "398_271.90",
+//   "total_rows_per_second": "806_210.41",
+//   "transfer_rate": "500.86 MB/second",
+//   "duckdb_files": 9,
+//   "duckdb_files_MB": 38429,
+//   "file_avg_duration": "33.579s"
 // }
 ```
 Generate random data to emulate the Kafka topic
@@ -177,4 +191,4 @@ Feedback and PRs welcome.
 
 ## Licence
 
-Quacfka is released under the Apache 2.0 license. See [LICENCE.txt](LICENCE.txt)
+Quacfka is released under the Apache 2.0 license. See [LICENCE](LICENCE)
