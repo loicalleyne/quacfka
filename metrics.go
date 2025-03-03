@@ -84,6 +84,7 @@ func (o *Orchestrator[T]) StartMetrics() {
 	o.StartMetrics()
 }
 
+// ResetMetrics resets all metrics to zero.
 func (o *Orchestrator[T]) ResetMetrics() {
 	o.Metrics.kafkaMessagesConsumed.Store(0)
 	o.Metrics.recordsProcessed.Store(0)
@@ -176,9 +177,22 @@ func printMemUsage() {
 
 }
 
+// BenchmarksReport generates an indented live benchmark report with
+// throughput rates sampled from the last 30 seconds.
 func (o *Orchestrator[T]) BenchmarksReport() string {
 	report := o.generateBenchmarksReport()
 	jsonData, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return fmt.Sprintf("Error generating report: %v", err)
+	}
+	return string(jsonData)
+}
+
+// BenchmarksUnformatedReport generates an unindented live benchmark report with
+// throughput rates sampled from the last 30 seconds.
+func (o *Orchestrator[T]) BenchmarksUnformatedReport() string {
+	report := o.generateBenchmarksReport()
+	jsonData, err := json.Marshal(report)
 	if err != nil {
 		return fmt.Sprintf("Error generating report: %v", err)
 	}
