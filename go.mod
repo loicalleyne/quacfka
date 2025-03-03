@@ -16,7 +16,7 @@ require (
 	github.com/goccy/go-json v0.10.5
 	github.com/joho/godotenv v1.5.1
 	github.com/loicalleyne/bufarrow v0.5.0
-	github.com/loicalleyne/couac v0.5.1
+	github.com/loicalleyne/couac v0.5.2
 	github.com/loicalleyne/protorand v0.0.0-20250201052828-ef9589bb5a9a
 	github.com/panjf2000/ants/v2 v2.11.0
 	github.com/spf13/cast v1.7.1
