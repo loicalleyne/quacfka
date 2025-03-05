@@ -182,6 +182,7 @@ func WithDuckRunner(p *DuckRunner) DuckOption {
 	}
 }
 
+// ConfigureDuck initializes DuckDB connection settings.
 func (o *Orchestrator[T]) ConfigureDuck(opts ...DuckOption) error {
 	var err error
 	if o.duckConf != nil && o.duckConf.quack != nil {
@@ -203,6 +204,19 @@ func (o *Orchestrator[T]) ConfigureDuck(opts ...DuckOption) error {
 	}
 	o.duckConf = d
 	return nil
+}
+
+// Reopen DuckDB database using an existing DuckDB configuration. Returns
+// an error if ConfigureDuck has not been previously run or if Orchestrator
+// has not been closed.
+func (o *Orchestrator[T]) RestartDuck() error {
+	if o.duckConf == nil {
+		return fmt.Errorf("duckdb not configured")
+	}
+	if !o.IsClosed() {
+		return fmt.Errorf("orchestrator not closed")
+	}
+	return o.configureDuck(o.duckConf)
 }
 
 func (o *Orchestrator[T]) configureDuck(d *duckConf) error {
@@ -232,6 +246,9 @@ func (o *Orchestrator[T]) configureDuck(d *duckConf) error {
 	return nil
 }
 
+// DuckIngestWithRotate reads records from the record channel and ingests the Records into
+// rotating DuckDB files, rotating at the file size threshold defined. Ingestion ends when
+// the Record channel is closed and empty.
 func (o *Orchestrator[T]) DuckIngestWithRotate(ctx context.Context, w *sync.WaitGroup) {
 	defer w.Done()
 	var rwg sync.WaitGroup
@@ -277,6 +294,8 @@ func (o *Orchestrator[T]) DuckIngestWithRotate(ctx context.Context, w *sync.Wait
 	}
 }
 
+// DuckIngest reads records from the record channel and ingests the Records into
+// a single DuckDB database. Ingestion ends when the Record channel is closed and empty.
 func (o *Orchestrator[T]) DuckIngest(ctx context.Context, w *sync.WaitGroup) {
 	debug.SetPanicOnFault(true)
 	defer func() {

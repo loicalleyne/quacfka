@@ -169,10 +169,21 @@ func NewOrchestrator[T proto.Message](opts ...Option) (*Orchestrator[T], error) 
 	o.NewMetrics()
 	return o, nil
 }
+
+// Close closes the DuckDB database, if open.
 func (o *Orchestrator[T]) Close() {
 	if o.duckConf != nil && o.duckConf.quack != nil {
 		o.duckConf.quack.Close()
+		o.duckConf.quack = nil
 	}
+}
+
+// IsClosed returns whether DuckDB database is open or not.
+func (o *Orchestrator[T]) IsClosed() bool {
+	if o.duckConf == nil || o.duckConf.quack == nil {
+		return true
+	}
+	return false
 }
 
 func (o *Orchestrator[T]) Run(ctx context.Context, wg *sync.WaitGroup) {
@@ -220,12 +231,32 @@ func (o *Orchestrator[T]) ArrowQueueCapacity() int  { return o.processorConf.rCh
 func (o *Orchestrator[T]) Error() error             { return o.err }
 func (o *Orchestrator[T]) Schema() *bufa.Schema[T]  { return o.bufArrowSchema }
 func (o *Orchestrator[T]) MessageChan() chan []byte { return o.mChan }
-func (o *Orchestrator[T]) RecordChan() chan Record  { return o.rChan }
-func (o *Orchestrator[T]) KafkaClientCount() int    { return int(o.kafkaConf.ClientCount.Load()) }
-func (o *Orchestrator[T]) KafkaQueueCapacity() int  { return int(o.kafkaConf.MsgChanCap) }
-func (o *Orchestrator[T]) MsgProcessorsCount() int  { return int(o.msgProcessorsCount.Load()) }
-func (o *Orchestrator[T]) DuckConnCount() int       { return int(o.duckConf.duckConnCount.Load()) }
-func (o *Orchestrator[T]) DuckPaths() chan string   { return o.duckPaths }
+func (o *Orchestrator[T]) MessageChanClose() {
+	close(o.mChan)
+	o.mChanClosed = true
+}
+func (o *Orchestrator[T]) MessageChanSend(m []byte) {
+	if o.kafkaConf.Munger != nil {
+		o.mChan <- o.byteCounter(o.kafkaConf.Munger(m))
+	} else {
+		o.mChan <- o.byteCounter(m)
+	}
+	o.Metrics.kafkaMessagesConsumed.Add(1)
+}
+func (o *Orchestrator[T]) RecordChan() chan Record { return o.rChan }
+func (o *Orchestrator[T]) RecordChanClose() {
+	close(o.rChan)
+	o.rChanClosed = true
+}
+func (o *Orchestrator[T]) RecordChanSend(r Record) {
+	o.rChan <- r
+	o.rChanRecs.Add(1)
+}
+func (o *Orchestrator[T]) KafkaClientCount() int   { return int(o.kafkaConf.ClientCount.Load()) }
+func (o *Orchestrator[T]) KafkaQueueCapacity() int { return int(o.kafkaConf.MsgChanCap) }
+func (o *Orchestrator[T]) MsgProcessorsCount() int { return int(o.msgProcessorsCount.Load()) }
+func (o *Orchestrator[T]) DuckConnCount() int      { return int(o.duckConf.duckConnCount.Load()) }
+func (o *Orchestrator[T]) DuckPaths() chan string  { return o.duckPaths }
 func newBufarrowSchema[T proto.Message]() (*bufa.Schema[T], error) {
 	return bufa.New[T](memory.DefaultAllocator)
 }

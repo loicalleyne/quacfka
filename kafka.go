@@ -139,12 +139,7 @@ func consumeKafka[T proto.Message](k any) {
 			iter := fetches.RecordIter()
 			for !iter.Done() {
 				m := iter.Next()
-				if kc.parent.kafkaConf.Munger != nil {
-					kc.parent.mChan <- kc.parent.byteCounter(kc.parent.kafkaConf.Munger(m.Value))
-				} else {
-					kc.parent.mChan <- kc.parent.byteCounter(m.Value)
-				}
-				kc.parent.Metrics.kafkaMessagesConsumed.Add(1)
+				kc.parent.MessageChanSend(m.Value)
 				select {
 				case <-kc.ctx.Done():
 					return
@@ -181,7 +176,7 @@ func (o *Orchestrator[T]) startKafka(ctx context.Context, w *sync.WaitGroup) {
 		}
 	}()
 	defer w.Done()
-	defer close(o.mChan)
+	defer o.MessageChanClose()
 	instanceIDPool := namepool.Pool("quacfka%d")
 	kpool, _ := ants.NewPoolWithFunc(int(o.kafkaConf.ClientCount.Load()), consumeKafka[T], ants.WithPreAlloc(true))
 	defer kpool.Release()
@@ -210,7 +205,6 @@ func (o *Orchestrator[T]) startKafka(ctx context.Context, w *sync.WaitGroup) {
 	if debugLog != nil {
 		debugLog("quacfka: closing mChan: %v recs\n", o.Metrics.kafkaMessagesConsumed.Load())
 	}
-	o.mChanClosed = true
 }
 
 // MockKafka produces protobuf messages with random data in each field to the message channel.
@@ -224,7 +218,7 @@ func (o *Orchestrator[T]) MockKafka(ctx context.Context, w *sync.WaitGroup, p T)
 
 	var kg sync.WaitGroup
 	o.mChan = make(chan []byte, o.kafkaConf.MsgChanCap)
-	defer close(o.mChan)
+	defer o.MessageChanClose()
 	for i := 0; i < 10; i++ {
 		kg.Add(1)
 		go func(ctx context.Context, g *sync.WaitGroup) {
@@ -240,11 +234,9 @@ func (o *Orchestrator[T]) MockKafka(ctx context.Context, w *sync.WaitGroup, p T)
 				if err != nil {
 					panic(err)
 				}
-				o.mChan <- o.byteCounter(j)
-				o.Metrics.kafkaMessagesConsumed.Add(1)
+				o.MessageChanSend(j)
 			}
 		}(ctx, &kg)
 	}
 	kg.Wait()
-	o.mChanClosed = true
 }

@@ -74,7 +74,7 @@ func (o *Orchestrator[T]) ConfigureProcessor(rChanCap, rowGroupSizeMultiplier, r
 
 // ProcessMessages creates a pool of deserializer goroutines
 func (o *Orchestrator[T]) ProcessMessages(ctx context.Context, wg *sync.WaitGroup) {
-	defer close(o.rChan)
+	defer o.RecordChanClose()
 	defer wg.Done()
 	cpool, _ := ants.NewPoolWithFunc(o.MsgProcessorsCount(), convertMessages[T], ants.WithPreAlloc(true))
 	defer cpool.Release()
@@ -99,7 +99,6 @@ func (o *Orchestrator[T]) ProcessMessages(ctx context.Context, wg *sync.WaitGrou
 	if debugLog != nil {
 		debugLog("quacfka: processing closing rChan: %v recs\n", o.Metrics.recordsProcessed.Load())
 	}
-	o.rChanClosed = true
 }
 
 func convertMessages[T proto.Message](c any) {
