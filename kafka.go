@@ -32,6 +32,8 @@ type KafkaClientConf[T proto.Message] struct {
 	ClientCount atomic.Int32
 	// Consumer group
 	ConsumerGroup string
+	// Instance prefix
+	InstancePrefix string
 	// Message channel capacity, must be greater than 0. Default capacity is 122880.
 	MsgChanCap int
 	// Function to munge message bytes prior to deserialization.
@@ -177,7 +179,13 @@ func (o *Orchestrator[T]) startKafka(ctx context.Context, w *sync.WaitGroup) {
 	}()
 	defer w.Done()
 	defer o.MessageChanClose()
-	instanceIDPool := namepool.Pool("quacfka%d")
+	var instancePrefix string
+	if o.kafkaConf.InstancePrefix == "" {
+		instancePrefix = "quacfka"
+	} else {
+		instancePrefix = o.kafkaConf.InstancePrefix
+	}
+	instanceIDPool := namepool.Pool(fmt.Sprintf("%s%%d", instancePrefix))
 	kpool, _ := ants.NewPoolWithFunc(int(o.kafkaConf.ClientCount.Load()), consumeKafka[T], ants.WithPreAlloc(true))
 	defer kpool.Release()
 
