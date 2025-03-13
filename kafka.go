@@ -3,6 +3,7 @@ package quacfka
 import (
 	"context"
 	"crypto/tls"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"log"
@@ -36,6 +37,11 @@ type KafkaClientConf[T proto.Message] struct {
 	InstancePrefix string
 	// Message channel capacity, must be greater than 0. Default capacity is 122880.
 	MsgChanCap int
+	// MsgTimeAppend sets whether to append the Kafka message timestamp as an 8 byte uint64
+	// at end of message bytes. It is the deserializing's function responsibility
+	// to truncate these prior to reading the protobuf message.
+	// Use `time.Milli(int64(binary.LittleEndian.Uint64(b)))` to retrieve the timestamp.
+	MsgTimeAppend bool
 	// Function to munge message bytes prior to deserialization.
 	// As an example, Confluent java client adds 6 magic bytes at
 	// beginning of message data for use with Schema Registry which must
@@ -141,7 +147,15 @@ func consumeKafka[T proto.Message](k any) {
 			iter := fetches.RecordIter()
 			for !iter.Done() {
 				m := iter.Next()
-				kc.parent.MessageChanSend(m.Value)
+				if !kc.parent.kafkaConf.MsgTimeAppend {
+					kc.parent.MessageChanSend(m.Value)
+				} else {
+					b := make([]byte, 8)
+					binary.LittleEndian.PutUint64(b, uint64(m.Timestamp.UnixMilli()))
+					msg := append(m.Value, b...)
+					kc.parent.MessageChanSend(msg)
+				}
+
 				select {
 				case <-kc.ctx.Done():
 					return

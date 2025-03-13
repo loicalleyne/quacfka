@@ -34,6 +34,7 @@ type Opt struct {
 	normalizerFieldStrings []string
 	normalizerAliasStrings []string
 	failOnRangeErr         bool
+	customFields           []bufa.CustomField
 }
 
 type (
@@ -144,18 +145,32 @@ func NewOrchestrator[T proto.Message](opts ...Option) (*Orchestrator[T], error) 
 	}
 	o.opt = newOpt
 
+	if len(o.opt.normalizerFieldStrings) > 0 && len(o.opt.customFields) > 0 {
+		o.bufArrowSchema, err = bufa.New[T](memory.DefaultAllocator, bufa.WithNormalizer(o.opt.normalizerFieldStrings, o.opt.normalizerAliasStrings, false), bufa.WithCustomFields(o.opt.customFields))
+		if err != nil {
+			return nil, err
+		}
+		goto skipbufa
+	}
 	if len(o.opt.normalizerFieldStrings) > 0 {
 		o.bufArrowSchema, err = bufa.New[T](memory.DefaultAllocator, bufa.WithNormalizer(o.opt.normalizerFieldStrings, o.opt.normalizerAliasStrings, false))
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		o.bufArrowSchema, err = bufa.New[T](memory.DefaultAllocator)
+		goto skipbufa
+	}
+	if len(o.opt.customFields) > 0 {
+		o.bufArrowSchema, err = bufa.New[T](memory.DefaultAllocator, bufa.WithCustomFields(o.opt.customFields))
 		if err != nil {
 			return nil, err
 		}
+		goto skipbufa
 	}
-
+	o.bufArrowSchema, err = bufa.New[T](memory.DefaultAllocator)
+	if err != nil {
+		return nil, err
+	}
+skipbufa:
 	if o.opt.withDuckPathsChan {
 		if o.opt.duckPathChanCap < 1 {
 			return nil, fmt.Errorf("invalid duck path channel capacity: %d", o.opt.duckPathChanCap)

@@ -1,4 +1,4 @@
-DUCKDB_VERSION=1.2.0 
+DUCKDB_VERSION=1.2.1 
 wget https://github.com/duckdb/duckdb/releases/download/v${DUCKDB_VERSION}/libduckdb-linux-amd64.zip \
     && unzip libduckdb-linux-amd64.zip -d libduckdb \
     && mv libduckdb/duckdb.* /usr/local/include \

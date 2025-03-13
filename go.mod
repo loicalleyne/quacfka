@@ -9,7 +9,7 @@ retract (
 	v0.1.1
 	v0.1.0
 )
-
+replace github.com/loicalleyne/bufarrow => ../bufarrow
 require (
 	github.com/SAP/go-dblib v0.0.0-20230911064405-b779cef8f299
 	github.com/apache/arrow-go/v18 v18.2.0-rc0
