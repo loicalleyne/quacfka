@@ -102,27 +102,27 @@ func (o *Orchestrator[T]) ProcessMessages(ctx context.Context, wg *sync.WaitGrou
 }
 
 func convertMessages[T proto.Message](c any) {
-	// defer func() {
-	// 	e := recover()
-	// 	if e != nil {
-	// 		switch x := e.(type) {
-	// 		case error:
-	// 			err := x
-	// 			c.(*processorConf[T]).parent.err = fmt.Errorf("recover convertmessages: %w", err)
-	// 			if errorLog != nil {
-	// 				errorLog("recover convertmessages: %v\n", err)
-	// 			}
-	// 		case string:
-	// 			err := errors.New(x)
-	// 			c.(*processorConf[T]).parent.err = fmt.Errorf("recover convertmessages: %w", err)
-	// 			if errorLog != nil {
-	// 				errorLog("recover convertmessages: %s\n", err)
-	// 			}
-	// 		default:
-	// 		}
-	// 		return
-	// 	}
-	// }()
+	defer func() {
+		e := recover()
+		if e != nil {
+			switch x := e.(type) {
+			case error:
+				err := x
+				c.(*processorConf[T]).parent.err = fmt.Errorf("recover convertmessages: %w", err)
+				if errorLog != nil {
+					errorLog("recover convertmessages: %v\n", err)
+				}
+			case string:
+				err := errors.New(x)
+				c.(*processorConf[T]).parent.err = fmt.Errorf("recover convertmessages: %w", err)
+				if errorLog != nil {
+					errorLog("recover convertmessages: %s\n", err)
+				}
+			default:
+			}
+			return
+		}
+	}()
 	defer c.(*processorConf[T]).wg.Done()
 	bc := 0
 

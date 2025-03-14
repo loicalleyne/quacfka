@@ -9,13 +9,15 @@ retract (
 	v0.1.1
 	v0.1.0
 )
+
 replace github.com/loicalleyne/bufarrow => ../bufarrow
+
 require (
 	github.com/SAP/go-dblib v0.0.0-20230911064405-b779cef8f299
 	github.com/apache/arrow-go/v18 v18.2.0-rc0
 	github.com/goccy/go-json v0.10.5
 	github.com/joho/godotenv v1.5.1
-	github.com/loicalleyne/bufarrow v0.5.0
+	github.com/loicalleyne/bufarrow v0.5.1
 	github.com/loicalleyne/couac v0.5.2
 	github.com/loicalleyne/protorand v0.0.0-20250201052828-ef9589bb5a9a
 	github.com/panjf2000/ants/v2 v2.11.2
@@ -30,6 +32,7 @@ require (
 	github.com/apache/thrift v0.21.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
+	github.com/jhump/protoreflect/v2 v2.0.0-beta.2 // indirect
 	github.com/klauspost/asmfmt v1.3.2 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
