@@ -419,7 +419,7 @@ func (o *Orchestrator[T]) DuckIngest(ctx context.Context, w *sync.WaitGroup) {
 }
 
 func (o *Orchestrator[T]) shouldRotateFile(ctx context.Context, duck *couac.QuackCon) bool {
-	if o.opt.fileRotateThresholdMB > 0 && o.duckConf.quack.Path() != "" && checkDuckDBSizeMB(ctx, duck) >= o.opt.fileRotateThresholdMB {
+	if o.opt.fileRotateThresholdMB > 0 && o.duckConf.quack.Path() != "" && (checkDuckDBSizeMB(ctx, duck) >= o.opt.fileRotateThresholdMB || (o.opt.fileRotateDurationSeconds.Milliseconds() != 0 && time.Since(o.Metrics.duckMetrics.duckFileStart) >= o.opt.fileRotateDurationSeconds)) {
 		return true
 	}
 	return false

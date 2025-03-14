@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/memory"
@@ -23,18 +24,19 @@ type CustomArrow struct {
 }
 
 type Opt struct {
-	withoutKafka           bool
-	withoutProc            bool
-	withoutDuck            bool
-	withoutDuckIngestRaw   bool
-	withDuckPathsChan      bool
-	duckPathChanCap        int
-	fileRotateThresholdMB  int64
-	customArrow            []CustomArrow
-	normalizerFieldStrings []string
-	normalizerAliasStrings []string
-	failOnRangeErr         bool
-	customFields           []bufa.CustomField
+	withoutKafka              bool
+	withoutProc               bool
+	withoutDuck               bool
+	withoutDuckIngestRaw      bool
+	withDuckPathsChan         bool
+	duckPathChanCap           int
+	fileRotateThresholdMB     int64
+	fileRotateDurationSeconds time.Duration
+	customArrow               []CustomArrow
+	normalizerFieldStrings    []string
+	normalizerAliasStrings    []string
+	failOnRangeErr            bool
+	customFields              []bufa.CustomField
 }
 
 type (
@@ -86,6 +88,18 @@ func WithFileRotateThresholdMB(p int64) Option {
 			return
 		}
 		cfg.fileRotateThresholdMB = p
+	}
+}
+
+// WithFileRotateThresholdDurationSeconds sets the database file rotation duration
+// threshold in seconds. Minimum duration is 60 seconds
+func WithFileRotateThresholdDurationSeconds(p int) Option {
+	return func(cfg config) {
+		if p < 60 {
+			cfg.fileRotateDurationSeconds = 60 * time.Second
+			return
+		}
+		cfg.fileRotateDurationSeconds = time.Duration(p) * time.Second
 	}
 }
 
