@@ -244,10 +244,10 @@ func (o *Orchestrator[T]) Run(ctx context.Context, wg *sync.WaitGroup) {
 			}
 		default:
 			runWG.Add(1)
-			switch rt := o.opt.fileRotateThresholdMB; rt > 0 {
-			case true:
+
+			if o.opt.fileRotateThresholdMB > 0 || o.opt.fileRotateDurationSeconds.Microseconds() > 0 {
 				go o.DuckIngestWithRotate(context.Background(), &runWG)
-			default:
+			} else {
 				go o.DuckIngest(context.Background(), &runWG)
 			}
 		}

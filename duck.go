@@ -411,7 +411,7 @@ func (o *Orchestrator[T]) DuckIngest(ctx context.Context, w *sync.WaitGroup) {
 		}
 	}
 	cwg.Wait()
-	if o.opt.fileRotateThresholdMB == 0 && o.duckConf.quack.Path() != "" {
+	if o.opt.fileRotateThresholdMB == 0 && o.opt.fileRotateDurationSeconds.Milliseconds() == 0 && o.duckConf.quack.Path() != "" {
 		o.duckPaths <- o.duckConf.quack.Path()
 		close(o.duckPaths)
 		o.duckConf.quack.Close()
@@ -419,7 +419,10 @@ func (o *Orchestrator[T]) DuckIngest(ctx context.Context, w *sync.WaitGroup) {
 }
 
 func (o *Orchestrator[T]) shouldRotateFile(ctx context.Context, duck *couac.QuackCon) bool {
-	if o.opt.fileRotateThresholdMB > 0 && o.duckConf.quack.Path() != "" && (checkDuckDBSizeMB(ctx, duck) >= o.opt.fileRotateThresholdMB || (o.opt.fileRotateDurationSeconds.Milliseconds() != 0 && time.Since(o.Metrics.duckMetrics.duckFileStart) >= o.opt.fileRotateDurationSeconds)) {
+	if o.opt.fileRotateThresholdMB > 0 && o.duckConf.quack.Path() != "" && checkDuckDBSizeMB(ctx, duck) >= o.opt.fileRotateThresholdMB {
+		return true
+	}
+	if o.opt.fileRotateDurationSeconds.Milliseconds() != 0 && time.Since(o.Metrics.duckMetrics.duckFileStart) >= o.opt.fileRotateDurationSeconds {
 		return true
 	}
 	return false
@@ -535,6 +538,9 @@ func (o *Orchestrator[T]) adbcInsert(c *duckJob) {
 			if dbSizeAfterInsert+(dbSizeAfterInsert-dbSizeBeforeInsert)/int64(o.DuckConnCount()-1) >= o.opt.fileRotateThresholdMB {
 				break
 			}
+		}
+		if o.opt.fileRotateDurationSeconds.Milliseconds() != 0 && time.Since(o.Metrics.duckMetrics.duckFileStart) >= o.opt.fileRotateDurationSeconds {
+			break
 		}
 	}
 }
