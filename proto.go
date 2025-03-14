@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/apache/arrow-go/v18/arrow/memory"
 
@@ -138,7 +139,7 @@ func convertMessages[T proto.Message](c any) {
 		}
 		bc++
 		c.(*processorConf[T]).parent.Metrics.recordsProcessed.Add(1)
-		if bc == 122880*c.(*processorConf[T]).parent.rowGroupSizeMultiplier {
+		if bc == 122880*c.(*processorConf[T]).parent.rowGroupSizeMultiplier || (c.(*processorConf[T]).parent.opt.fileRotateDurationSeconds.Milliseconds() != 0 && time.Since(c.(*processorConf[T]).parent.Metrics.duckMetrics.duckFileStart) >= c.(*processorConf[T]).parent.opt.fileRotateDurationSeconds) {
 			c.(*processorConf[T]).parent.rChan <- Record{Raw: c.(*processorConf[T]).s.NewRecord(),
 				Norm: c.(*processorConf[T]).s.NewNormalizerRecord()}
 			c.(*processorConf[T]).parent.rChanRecs.Add(1)
