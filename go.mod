@@ -14,7 +14,7 @@ replace github.com/loicalleyne/bufarrow => ../bufarrow
 
 require (
 	github.com/SAP/go-dblib v0.0.0-20230911064405-b779cef8f299
-	github.com/apache/arrow-go/v18 v18.2.0-rc0
+	github.com/apache/arrow-go/v18 v18.2.0-rc1
 	github.com/goccy/go-json v0.10.5
 	github.com/joho/godotenv v1.5.1
 	github.com/loicalleyne/bufarrow v0.5.1
@@ -47,10 +47,10 @@ require (
 	golang.org/x/mod v0.23.0 // indirect
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sync v0.11.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 	golang.org/x/tools v0.30.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250207221924-e9438ea467c6 // indirect
-	google.golang.org/grpc v1.70.0 // indirect
+	google.golang.org/grpc v1.71.0 // indirect
 )
