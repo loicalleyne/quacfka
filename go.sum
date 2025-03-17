@@ -6,6 +6,8 @@ github.com/apache/arrow-adbc/go/adbc v1.4.0 h1:I21y3Pq9ygtsmbwNgDZ3dsWRgtuOVMWIV
 github.com/apache/arrow-adbc/go/adbc v1.4.0/go.mod h1:fBbhukk/BpKLGfYquN/ru3ru1Ipl4e+IVqsBtCfWMJc=
 github.com/apache/arrow-go/v18 v18.2.0-rc1 h1:jkK0F0BHQqARLTAf3809TpABsCnjGhiI/HV4NbCBYUE=
 github.com/apache/arrow-go/v18 v18.2.0-rc1/go.mod h1:Ic/01WSwGJWRrdAZcxjBZ5hbApNJ28K96jGYaxzzGUc=
+github.com/apache/arrow-go/v18 v18.2.0 h1:QhWqpgZMKfWOniGPhbUxrHohWnooGURqL2R2Gg4SO1Q=
+github.com/apache/arrow-go/v18 v18.2.0/go.mod h1:Ic/01WSwGJWRrdAZcxjBZ5hbApNJ28K96jGYaxzzGUc=
 github.com/apache/thrift v0.21.0 h1:tdPmh/ptjE1IJnhbhrcl2++TauVjy242rkV/UzJChnE=
 github.com/apache/thrift v0.21.0/go.mod h1:W1H8aR/QRtYNvrPeFXBtobyRkd0/YVhTc6i07XIAgDw=
 github.com/bufbuild/protocompile v0.14.1 h1:iA73zAf/fyljNjQKwYzUHD6AD4R8KMasmwa/FBatYVw=
