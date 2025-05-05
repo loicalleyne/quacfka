@@ -21,7 +21,7 @@ require (
 	github.com/loicalleyne/couac v0.5.3
 	github.com/loicalleyne/protorand v0.0.0-20250201052828-ef9589bb5a9a
 	github.com/panjf2000/ants/v2 v2.11.3
-	github.com/spf13/cast v1.7.1
+	github.com/spf13/cast v1.8.0
 	github.com/twmb/franz-go v1.18.1
 	google.golang.org/protobuf v1.36.6
 )
