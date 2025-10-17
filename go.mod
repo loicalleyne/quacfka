@@ -1,6 +1,6 @@
 module github.com/loicalleyne/quacfka
 
-go 1.23.8
+go 1.24.0
 
 toolchain go1.24.1
 
@@ -24,7 +24,7 @@ require (
 	github.com/loicalleyne/protorand v0.0.0-20250201052828-ef9589bb5a9a
 	github.com/panjf2000/ants/v2 v2.11.3
 	github.com/spf13/cast v1.10.0
-	github.com/twmb/franz-go v1.19.5
+	github.com/twmb/franz-go v1.20.0
 	google.golang.org/protobuf v1.36.9
 )
 
@@ -42,7 +42,7 @@ require (
 	github.com/minio/c2goasm v0.0.0-20190812172519-36a3d3bbc4f3 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/sryoya/protorand v0.0.0-20250114120907-8c1a8e3138f2 // indirect
-	github.com/twmb/franz-go/pkg/kmsg v1.11.2 // indirect
+	github.com/twmb/franz-go/pkg/kmsg v1.12.0 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
