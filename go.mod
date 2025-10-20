@@ -25,7 +25,7 @@ require (
 	github.com/panjf2000/ants/v2 v2.11.3
 	github.com/spf13/cast v1.10.0
 	github.com/twmb/franz-go v1.20.0
-	google.golang.org/protobuf v1.36.9
+	google.golang.org/protobuf v1.36.10
 )
 
 require (
