@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -130,6 +131,11 @@ func convertMessages[T proto.Message](c any) {
 	for m := range c.(*processorConf[T]).parent.mChan {
 		err := c.(*processorConf[T]).unmarshalFunc(m, c.(*processorConf[T]).s)
 		if err != nil {
+			if strings.Contains(err.Error(), "catch-up") {
+				// allow returning a 'catch-up' error to skip messages without logging
+				// this is useful for Kafka where you may want to skip messages until a certain offset
+				continue
+			}
 			log.Println("unmarshal ", err)
 			c.(*processorConf[T]).parent.err = fmt.Errorf("unmarshal error: %w", err)
 			if errorLog != nil {
