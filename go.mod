@@ -24,7 +24,7 @@ require (
 	github.com/loicalleyne/protorand v0.0.0-20250201052828-ef9589bb5a9a
 	github.com/panjf2000/ants/v2 v2.11.3
 	github.com/spf13/cast v1.10.0
-	github.com/twmb/franz-go v1.20.4
+	github.com/twmb/franz-go v1.20.7
 	google.golang.org/protobuf v1.36.10
 )
 
@@ -36,11 +36,11 @@ require (
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/jhump/protoreflect/v2 v2.0.0-beta.2 // indirect
 	github.com/klauspost/asmfmt v1.3.2 // indirect
-	github.com/klauspost/compress v1.18.0 // indirect
+	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/minio/asm2plan9s v0.0.0-20200509001527-cdd76441f9d8 // indirect
 	github.com/minio/c2goasm v0.0.0-20190812172519-36a3d3bbc4f3 // indirect
-	github.com/pierrec/lz4/v4 v4.1.22 // indirect
+	github.com/pierrec/lz4/v4 v4.1.25 // indirect
 	github.com/sryoya/protorand v0.0.0-20250114120907-8c1a8e3138f2 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.12.0 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
